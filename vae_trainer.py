@@ -75,19 +75,21 @@ class VAETrainer(object):
 
     def sample(self):
         self._print_asterisk()
-        while(True):
+        key = ''
+        while(key != 'q'):
             batch_size = self.config.batch_size
             hidden_size = self.config.hidden_size
 
             z = np.random.normal(0, 1, (batch_size, hidden_size))
-            #z = tf.random_normal([batch_size, hidden_size], name='z')
             sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z})
+
             for ids in sampled_ids:
                 words = self._ids_to_words(ids, self.id_to_word)
+                self._print_asterisk()
                 print(self._words_to_str(words, max_words=40))
                 self._print_asterisk()
-                key = raw_input("Press any key to continue... or 'x' to quit")
-                if key == 'x': break
+                key = raw_input("Press any key to continue('x' to quit)...")
+                if key == 'q': break
 
     def _print_asterisk(self):
         print("*"*120)
