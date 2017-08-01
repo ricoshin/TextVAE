@@ -93,9 +93,10 @@ class VariationalAutoencoder(object):
                 else : # for sampling
                     SamplingHelper = (GreedyEmbeddingHelper \
                         if is_argmax_sampling else SampleEmbeddingHelper)
+                    start_tokens = tf.tile([EOS_ID], [batch_size])
 
                     helper = SamplingHelper(embedding=embedding,
-                                            start_tokens=[EOS_ID],
+                                            start_tokens=start_tokens,
                                             end_token=EOS_ID)
                 # projection layer
                 output_layer = Dense(units=vocab_num,

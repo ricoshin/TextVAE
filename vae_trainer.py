@@ -74,7 +74,6 @@ class VAETrainer(object):
                 #raw_input("Press Enter to continue...")
 
     def sample(self):
-        import pdb; pdb.set_trace()
         self._print_asterisk()
         while(True):
             z = tf.random_normal([batch_size, self.VAE.hidden_size], name='z')
