@@ -82,9 +82,9 @@ class VAETrainer(object):
             z = np.random.normal(0, 1, (batch_size, hidden_size))
             #z = tf.random_normal([batch_size, hidden_size], name='z')
             sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z})
-            sampled_words = self._ids_to_words(sampled_ids, self.id_to_word)
-            for words in sampled_words:
-                print(self._words_to_str(sampled_ids, 40))
+            for ids in sampled_ids:
+                words = self._ids_to_words(ids, self.id_to_word)
+                print(self._words_to_str(words, max_words=40))
                 self._print_asterisk()
                 key = raw_input("Press any key to continue... or 'x' to quit")
                 if key == 'x': break
@@ -94,7 +94,7 @@ class VAETrainer(object):
 
     def _ids_to_words(self, word_ids, id_to_word):
         return [id_to_word[word_id]
-                    for word_id in word_ids if (word_id!=PAD_ID)]
+                    for word_id in word_ids if word_id!=PAD_ID]
                     # and word_id!=EOS_ID)]'
 
     def _words_to_str(self, words, max_words):
