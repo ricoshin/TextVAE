@@ -32,7 +32,6 @@ class VariationalAutoencoder(object):
             learning_rate = config.learning_rate
             self.KL_weight = tf.Variable(0.0, "KL_weight")
             self.input_ids = y_dec
-            self.hidden_size = hidden_size
 
             def _lstm_cell():
                 return BasicLSTMCell(num_units=hidden_size,

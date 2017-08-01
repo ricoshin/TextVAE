@@ -76,8 +76,12 @@ class VAETrainer(object):
     def sample(self):
         self._print_asterisk()
         while(True):
-            z = tf.random_normal([batch_size, self.VAE.hidden_size], name='z')
-            sampled_ids = self.sess.run(self.VAE.sample_ids, {self.z : z})
+            batch_size = self.config.batch_size
+            hidden_size = self.config.hidden_size
+
+            z = np.random.normal(0, 1, (batch_size, hidden_size))
+            #z = tf.random_normal([batch_size, hidden_size], name='z')
+            sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z})
             sampled_words = self._ids_to_words(sampled_ids, self.id_to_word)
             for words in sampled_words:
                 print(self._words_to_str(sampled_ids, 40))
