@@ -2,12 +2,13 @@ import tensorflow as tf
 from tensorflow.contrib.seq2seq import BasicDecoder, dynamic_decode
 from tensorflow.contrib.seq2seq import sequence_loss
 from tensorflow.contrib.seq2seq import SampleEmbeddingHelper
+from tensorflow.contrib.seq2seq import GreedyEmbeddingHelper
 from tensorflow.contrib.rnn import BasicLSTMCell, GRUCell
 from tensorflow.contrib.framework import get_or_create_global_step
 from tensorflow.python.ops.nn import embedding_lookup, dynamic_rnn
 from tensorflow.python.layers.core import Dense
 from decoder_helper import WordDropoutTrainingHelper
-from data_loader import DROP_ID, EOS_TOKEN
+from data_loader import DROP_ID, EOS_ID
 
 class VariationalAutoencoder(object):
 
@@ -25,10 +26,11 @@ class VariationalAutoencoder(object):
             hidden_size = config.hidden_size
             embed_dim = config.embed_dim
             is_GRU = config.is_GRU
+            is_argmax_sampling = config.is_argmax_sampling
             word_keep_prob = config.word_dropout_keep_prob
             max_grad_norm = config.max_grad_norm
             learning_rate = config.learning_rate
-            self.kl_weight = tf.Variable(0.0, "kl_weight")
+            self.KL_weight = tf.Variable(0.0, "KL_weight")
             self.input_ids = y_dec
             self.hidden_size = hidden_size
 
@@ -60,9 +62,9 @@ class VariationalAutoencoder(object):
 
                 # linear layers for mu and log(var)
                 latent_dim = hidden_size # may have to change this later
-                W_mu = tf.get_variable("W_mu", [hidden_size, latent_dim])
+                W_mu = tf.get_variable("W_mu", [hidden_size,latent_dim])
                 b_mu = tf.get_variable("b_mu", [latent_dim])
-                W_logvar = tf.get_variable("W_logvar", [hidden_size, latent_dim])
+                W_logvar = tf.get_variable("W_logvar", [hidden_size,latent_dim])
                 b_logvar = tf.get_variable("b_logvar", [latent_dim])
                 #l2_loss = tf.nn.l2_loss(W_mu) + tf.nn.l2_loss(W_logvar)
 
@@ -81,25 +83,33 @@ class VariationalAutoencoder(object):
                 in_dec = embedding_lookup(embedding, x_dec)
 
             with tf.variable_scope("decoder"):
-                if is_train:
+                if is_train: # for training
                     helper = WordDropoutTrainingHelper(
                                                inputs=in_dec,
                                                sequence_length=len_dec,
                                                embedding=embedding,
                                                dropout_keep_prob=word_keep_prob,
                                                drop_token_id=DROP_ID)
-                else :
-                    helper = SampleEmbeddingHelper(embedding=embedding,
-                                                   start_token=EOS_TOKEN)
+                else : # for sampling
+                    SamplingHelper = (GreedyEmbeddingHelper \
+                        if is_argmax_sampling else SampleEmbeddingHelper)
 
+                    helper = SamplingHelper(embedding=embedding,
+                                            start_tokens=EOS_ID,
+                                            end_token=EOS_ID)
+                # projection layer
                 output_layer = Dense(units=vocab_num,
                                      activation=None,
                                      use_bias=True,
                                      trainable=True)
+
+                # decoder
                 decoder = BasicDecoder(cell=cell(),
                                        helper=helper,
                                        initial_state=self.z,
                                        output_layer=output_layer)
+
+                # dynamic_decode
                 out_tuple = dynamic_decode(decoder=decoder,
                                            output_time_major=False, #  speed
                                            impute_finished=True)
@@ -131,7 +141,7 @@ class VariationalAutoencoder(object):
         self.KL_loss_mean = tf.reduce_mean(self.KL_loss)
 
         # total loss
-        self.loss = self.AE_loss + self.kl_weight * self.KL_loss_mean
+        self.loss = self.AE_loss + self.KL_weight * self.KL_loss_mean
 
         # optimization
         self.lr = tf.Variable(learning_rate, trainable=False, name="lr")
@@ -149,14 +159,14 @@ class VariationalAutoencoder(object):
         self.lr_update = tf.assign(self.lr, self.new_lr)
 
         # KL weight update
-        self.new_kl_weight = tf.placeholder(tf.float32, shape=[], name="new_kl")
-        self.kl_weight_update = tf.assign(self.kl_weight, self.new_kl_weight)
+        self.new_KL_weight = tf.placeholder(tf.float32, shape=[], name="new_kl")
+        self.KL_weight_update = tf.assign(self.KL_weight, self.new_KL_weight)
 
         # summaries
         tf.summary.scalar("Loss/AE_mean", self.AE_loss_mean)
         tf.summary.scalar("Loss/KL_mean", self.KL_loss_mean)
         tf.summary.scalar("Loss/Total", self.AE_loss_mean + self.KL_loss_mean)
-        tf.summary.scalar("Misc/kl_weight", self.kl_weight)
+        tf.summary.scalar("Misc/KL_weight", self.KL_weight)
         tf.summary.scalar("Misc/mu_mean", tf.reduce_mean(mu))
         tf.summary.scalar("Misc/sigma_mean", tf.reduce_mean(stddev))
         tf.summary.scalar("Misc/learning_rate", self.lr)
@@ -169,7 +179,7 @@ class VariationalAutoencoder(object):
         print("[INFO] learning rate updated")
 
     def assign_kl_weight(self, sess, weight):
-        sess.run(self.kl_weight_update, feed_dict={self.new_kl_weight: weight})
+        sess.run(self.KL_weight_update, feed_dict={self.new_KL_weight: weight})
 
     # this function is for debuging (remove later)
 def sess():

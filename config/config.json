@@ -14,5 +14,8 @@
     "print_step": 30,
     "save_model_secs": 60,
     "KL_anealing_step":5000
-  }
+  },
+  "sampling":{
+    "is_argmax_sampling":true
+ }
 }

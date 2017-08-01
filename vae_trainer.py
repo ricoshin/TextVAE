@@ -1,7 +1,7 @@
-import data_loader
+import tensorflow as tf
 from data_loader import InputProducer
-from shutil import copyfile
-from model_vae import VariationalAutoencoder
+from data_loader import get_raw_data_from_file
+from vae_model import VariationalAutoencoder
 from data_loader import PAD_ID, EOS_ID
 from tqdm import tqdm
 import numpy as np
@@ -11,13 +11,9 @@ FLAGS = tf.app.flags.FLAGS
 class VAETrainer(object):
     def __init__(self, config):
 
-        # Generate ConfigStruct instance
-        config = ConfigStruct(**configs["model"])
-        config.update(**configs["train"])
-
+        self.config = config
         # Raw data load (PTB dataset)
-        raw_data = data_loader.get_raw_data_from_file(FLAGS.data_dir,
-                                                      config.max_vocab_size)
+        raw_data = get_raw_data_from_file(FLAGS.data_dir, config.max_vocab_size)
         train_data, valid_data, test_data, word_to_id, id_to_word = raw_data
         self.id_to_word = id_to_word
 
@@ -35,20 +31,20 @@ class VAETrainer(object):
         sess_config = tf.ConfigProto(allow_soft_placement=True,
                                      gpu_options=gpu_options)
 
-        self.sess = sv.PrepareSession(config=sess_config)
+        self.sess = self.sv.PrepareSession(config=sess_config)
 
-    def train():
+    def train(self):
         # Initialize progress step
-        progress_bar = tqdm(total=config.max_step)
+        progress_bar = tqdm(total=self.config.max_step)
         step = self.sess.run(self.VAE.global_step)
         progress_bar.update(step)
-        is_print = (lambda step : step % config.print_step == 0)
+        is_print = (lambda step : step % self.config.print_step == 0)
 
         # Main loop
         while not(self.sv.should_stop()):
             progress_bar.update(1)
             step += 1
-            if step > config.max_step:
+            if step > self.config.max_step:
                 sv.request_stop()
 
             # for KL anealing weight update
@@ -70,40 +66,50 @@ class VAETrainer(object):
 
             if is_print(step):
                 print("[*] AE_loss: {} / KL_loss: {} / KL weight : {}".format(
-                      result["AE_loss"], result["KL_loss"], result['KL_wight']))
+                      result["AE_loss"],result["KL_loss"],result['KL_weight']))
                 (in_ids, out_ids) = (result['input_ids'], result['sampled_ids'])
-                print_ids_to_words(in_ids, out_ids, id_to_word,
-                                   sentence_num=5, max_words=40)
+                self._print_ids_to_words(in_ids, out_ids, self.id_to_word,
+                                         sentence_num=5, max_words=40)
                 #import pdb; pdb.set_trace()
                 #raw_input("Press Enter to continue...")
 
-    def sample():
+    def sample(self):
+        self._print_asterisk()
         while(True):
             z = tf.random_normal([batch_size, self.VAE.hidden_size], name='z')
             sampled_ids = self.sess.run(self.VAE.sample_ids, {self.z : z})
-            sampled_ids
+            sampled_words = self._ids_to_words(sampled_ids, self.id_to_word)
+            for words in sampled_words:
+                print(self._words_to_str(sampled_ids, 40))
+                self._print_asterisk()
+                key = raw_input("Press any key to continue... or 'x' to quit")
+                if key == 'x': break
 
+    def _print_asterisk():
+        print("*"*120)
 
+    def _ids_to_words(self, word_ids, id_to_word):
+        return [id_to_word[word_id]
+                    for word_id in word_ids if (word_id!=PAD_ID)]
+                    # and word_id!=EOS_ID)]'
 
+    def _words_to_str(words, max_words):
+        # if sentence is too long,
+        # cut it short and punctuate with ellipsis(...)
+        if len(words) > max_words:
+            words[:max_words].append("...")
+        return " ".join(words)
 
-    def _ids_to_words(word_ids, id_to_word):
-        return [id_to_word[word_id] for word_id in word_ids]
-        # if (word_id!=PAD_ID)] # and word_id!=EOS_ID)]
-
-    def _print_ids_to_words(in_ids, out_ids, id_to_word, sentence_num, max_words):
-        sentence_list = []
-        aster_num = 120
-        print("*"*aster_num)
+    def _print_recont_samples(self, in_ids, out_ids, id_to_word,
+                              sentence_num, max_words):
+        self._print_asterisk()
         for i in range(sentence_num):
             # covert from ids to words using 'id_to_word' list
-            in_words = _ids_to_words(ids[i], id_to_word)
-            out_words = _ids_to_words(ids[i], id_to_word)
-            # if sentence is too long, cut it short and punctuate with ellipsis(...)
-            if len(in_words) > max_words:
-                in_word = in_words[:max_words].append("...")
-                out_word = out_words[:max_words].append("...")
-            in_str = " ".join(in_words)
-            out_str = " ".join(out_words)
+            in_words = self._ids_to_words(in_ids[i], id_to_word)
+            out_words = self._ids_to_words(out_ids[i], id_to_word)
+
+            in_str = self._words_to_str(in_words, max_words)
+            out_str = self._words_to_str(out_words, max_words)
 
             print("[X] " + in_str + "\n" + "[Y] " + out_str)
-            print("*"*aster_num)
+            self._print_asterisk()

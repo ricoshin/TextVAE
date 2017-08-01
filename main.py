@@ -8,7 +8,8 @@ import os
 import json
 import struct
 from datetime import datetime
-
+from shutil import copyfile
+from vae_trainer import VAETrainer
 
 """
 Usage:
@@ -20,6 +21,7 @@ Usage:
 
 flags = tf.app.flags
 flags.DEFINE_string("data_dir", "data", "data directory")
+flags.DEFINE_string("config_dir", "config", "config(json file) directory")
 flags.DEFINE_string("model_dir", "models", "model super-directory")
 flags.DEFINE_string("model_name", None, "model name(sub-directory)")
 flags.DEFINE_boolean("is_train", True, "set false when sampling")
@@ -50,23 +52,24 @@ def main(_):
             os.makedirs(path)
 
     # Load config.json file & copy it as log file in the model's sub-dir
-    config_path = os.path.join(FLAGS.model_dir, "config.json")
+    config_path = os.path.join(FLAGS.config_dir, "config.json")
     config_log_path = os.path.join(FLAGS.model_subdir, "config.json")
     copyfile(config_path, config_log_path)
     with open(config_path) as config_file:
         configs = json.load(config_file)
 
-
-
+    # Generate ConfigStruct instance
+    config = ConfigStruct(**configs["model"])
+    config.update(**configs["train"])
+    config.update(**configs["sampling"])
 
     # Trainer
-    trainer = VAETrainer(supervisor=sv, session=sess, model=VAE)
+    trainer = VAETrainer(config)
 
     if FLAGS.is_train:
         trainer.train()
     else:
         trainer.sample()
-
 
 if __name__ == "__main__":
     tf.app.run()
