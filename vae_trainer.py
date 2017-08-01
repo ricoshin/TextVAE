@@ -68,12 +68,13 @@ class VAETrainer(object):
                 print("[*] AE_loss: {} / KL_loss: {} / KL weight : {}".format(
                       result["AE_loss"],result["KL_loss"],result['KL_weight']))
                 (in_ids, out_ids) = (result['input_ids'], result['sampled_ids'])
-                self._print_ids_to_words(in_ids, out_ids, self.id_to_word,
-                                         sentence_num=5, max_words=40)
+                self._print_reconst_samples(in_ids, out_ids, self.id_to_word,
+                                            sentence_num=5, max_words=40)
                 #import pdb; pdb.set_trace()
                 #raw_input("Press Enter to continue...")
 
     def sample(self):
+        import pdb; pdb.set_trace()
         self._print_asterisk()
         while(True):
             z = tf.random_normal([batch_size, self.VAE.hidden_size], name='z')
@@ -85,7 +86,7 @@ class VAETrainer(object):
                 key = raw_input("Press any key to continue... or 'x' to quit")
                 if key == 'x': break
 
-    def _print_asterisk():
+    def _print_asterisk(self):
         print("*"*120)
 
     def _ids_to_words(self, word_ids, id_to_word):
@@ -93,14 +94,14 @@ class VAETrainer(object):
                     for word_id in word_ids if (word_id!=PAD_ID)]
                     # and word_id!=EOS_ID)]'
 
-    def _words_to_str(words, max_words):
+    def _words_to_str(self, words, max_words):
         # if sentence is too long,
         # cut it short and punctuate with ellipsis(...)
         if len(words) > max_words:
             words[:max_words].append("...")
         return " ".join(words)
 
-    def _print_recont_samples(self, in_ids, out_ids, id_to_word,
+    def _print_reconst_samples(self, in_ids, out_ids, id_to_word,
                               sentence_num, max_words):
         self._print_asterisk()
         for i in range(sentence_num):

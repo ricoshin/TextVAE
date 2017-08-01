@@ -95,7 +95,7 @@ class VariationalAutoencoder(object):
                         if is_argmax_sampling else SampleEmbeddingHelper)
 
                     helper = SamplingHelper(embedding=embedding,
-                                            start_tokens=EOS_ID,
+                                            start_tokens=[EOS_ID],
                                             end_token=EOS_ID)
                 # projection layer
                 output_layer = Dense(units=vocab_num,

@@ -17,8 +17,6 @@ Usage:
     set --model_name flag as the path of existing checkpoint file.
     e.g. $python main.py --model_dir=models/my_model_0727_131527
 """
-
-
 flags = tf.app.flags
 flags.DEFINE_string("data_dir", "data", "data directory")
 flags.DEFINE_string("config_dir", "config", "config(json file) directory")
