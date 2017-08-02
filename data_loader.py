@@ -113,7 +113,7 @@ class InputProducer(object):
         self.name = name
         self.word_to_id = word_to_id
         self.id_to_word = id_to_word
-        self.vocab_num = len(word_to_id)
+        self.vocab_num = len(id_to_word)
 
         self.x_enc, self.x_dec, self.y_dec, self.len_enc, self.len_dec = \
             self.input_producer(self.sequence, self.sequence_reversed,
@@ -125,7 +125,7 @@ class InputProducer(object):
         batch_num = sequence_number // batch_size
         sequence_length_minus_one = [x-1 for x in sequence_length]
         with tf.name_scope(name, "InputProducer"):
-            print("converting sequence data to tensor..")
+            print("[*] converting data lists to tensors..")
             tf_sequence = tf.convert_to_tensor(sequence,
                                                name="sequence",
                                                dtype=tf.int32)
@@ -138,7 +138,7 @@ class InputProducer(object):
             tf_length_decoder = tf.convert_to_tensor(sequence_length,
                                                      name="seq_length_decoder",
                                                      dtype=tf.int32)
-            print("done!")
+            print("[*] done!")
             i = tf.train.range_input_producer(batch_num, shuffle=False).dequeue()
 
             x_encoder = tf_sequence_rev[i*batch_size:(i+1)*batch_size]

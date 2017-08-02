@@ -4,7 +4,9 @@ from data_loader import get_raw_data_from_file
 from vae_model import VariationalAutoencoder
 from data_loader import PAD_ID, EOS_ID
 from tqdm import tqdm
+from wordvec import load_glove_embeddings
 import numpy as np
+import os
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -12,20 +14,44 @@ class VAETrainer(object):
     def __init__(self, config):
 
         self.config = config
+
         # Raw data load (PTB dataset)
-        raw_data = get_raw_data_from_file(FLAGS.data_dir, config.max_vocab_size)
+        raw_data = get_raw_data_from_file(data_path=FLAGS.data_dir,
+                                          max_vocab_size=config.max_vocab_size)
+
         train_data, valid_data, test_data, word_to_id, id_to_word = raw_data
+
+        embed_file_path = os.path.join(FLAGS.data_dir, 'embed_matrix.npy')
+
+        if os.path.exists(embed_file_path) and not config.reload_embed:
+            print("[*] loading embedding matrix from 'embed_matrix.npy'...")
+            embed_mat = np.load(embed_file_path)
+            print("[*] done!")
+        else:
+            print("[*] initially building embedding matrix...")
+            embed_mat = load_glove_embeddings(data_dir=FLAGS.glove_dir,
+                                              num_tokens='42B',
+                                              embed_dim=config.embed_dim,
+                                              word_to_id=word_to_id)
+            print("[*] and saving data as file...")
+            np.save(embed_file_path, embed_mat)
+            print("[*] done!")
+
         self.id_to_word = id_to_word
 
         # Generate input
-        train_input = InputProducer(train_data, word_to_id, id_to_word, config)
+        train_input = InputProducer(data=train_data, word_to_id=word_to_id,
+                                    id_to_word=id_to_word, config=config)
 
         # Build model
-        self.VAE = VariationalAutoencoder(train_input, config, FLAGS.is_train)
+        self.VAE = VariationalAutoencoder(input_producer= train_input,
+                                          embed_mat=embed_mat,
+                                          config=config,
+                                          is_train=FLAGS.is_train)
 
         # Supervisor & Session
         self.sv = tf.train.Supervisor(logdir=FLAGS.model_subdir,
-                                 save_model_secs=config.save_model_secs)
+                                      save_model_secs=config.save_model_secs)
 
         gpu_options = tf.GPUOptions(allow_growth=True)
         sess_config = tf.ConfigProto(allow_soft_placement=True,
@@ -47,8 +73,11 @@ class VAETrainer(object):
             if step > self.config.max_step:
                 sv.request_stop()
 
-            # for KL anealing weight update
-            new_kl_weight = (np.tanh((step-2500)/1000)+1)/2
+            # update KL anealing weight
+            from math import cos, pi
+            if step < self.config.KL_anealing_step:
+                new_kl_weight = (-cos(pi*step/self.config.KL_anealing_step)+1)/2
+            else: new_kl_weight = 1
             self.VAE.assign_kl_weight(self.sess, new_kl_weight)
 
             feeds = {"train_op" : self.VAE.train_op}
@@ -74,12 +103,12 @@ class VAETrainer(object):
                 #raw_input("Press Enter to continue...")
 
     def sample(self):
-        self._print_asterisk()
+        batch_size = self.config.batch_size
+        hidden_size = self.config.hidden_size
         key = ''
-        while(key != 'q'):
-            batch_size = self.config.batch_size
-            hidden_size = self.config.hidden_size
+        self._print_asterisk()
 
+        while(key != 'q'):
             z = np.random.normal(0, 1, (batch_size, hidden_size))
             sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z})
 
@@ -90,6 +119,29 @@ class VAETrainer(object):
                 self._print_asterisk()
                 key = raw_input("Press any key to continue('x' to quit)...")
                 if key == 'q': break
+        self.sv.request_stop()
+
+    def interpolate_samples(self):
+        interval_num = 9
+        batch_size = self.config.batch_size
+        hidden_size = self.config.hidden_size
+        key = ''
+
+        while(key != 'q'):
+            z_a = np.random.normal(0, 1, (1, hidden_size))
+            z_b = np.random.normal(0, 1, (1, hidden_size))
+            diff = (z_b - z_a) / interval_num
+            intervals = [z_a + diff*i for i in range(batch_size) \
+                            if i<=interval_num else np.tile([0], hidden_size)]
+            z_batch = np.vstack(intervals)
+            sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z_batch})
+            self._print_asterisk()
+            for i in range(interval_num+1):
+                print(sample_ids[i])
+                self._print_asterisk()
+                key = raw_input("Press any key to continue('x' to quit)...")
+                if key == 'q': break
+        self.sv.request_stop()
 
     def _print_asterisk(self):
         print("*"*120)
