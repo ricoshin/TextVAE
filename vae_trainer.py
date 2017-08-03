@@ -117,7 +117,7 @@ class VAETrainer(object):
                 self._print_asterisk()
                 print(self._words_to_str(words, max_words=40))
                 self._print_asterisk()
-                key = raw_input("Press any key to continue('x' to quit)...")
+                key = raw_input("Press any key to continue('q' to quit)...")
                 if key == 'q': break
         self.sv.request_stop()
 
@@ -131,15 +131,20 @@ class VAETrainer(object):
             z_a = np.random.normal(0, 1, (1, hidden_size))
             z_b = np.random.normal(0, 1, (1, hidden_size))
             diff = (z_b - z_a) / interval_num
-            intervals = [z_a + diff*i if i<=interval_num else np.tile([0], hidden_size)]
+            intervals = [z_a + diff*i if i<=interval_num\
+                                      else np.tile([0], hidden_size)\
+                                           for i in range(batch_size)]
             z_batch = np.vstack(intervals)
             sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z_batch})
             self._print_asterisk()
             for i in range(interval_num+1):
-                print(sample_ids[i])
+                words = self._ids_to_words(sampled_ids[i], self.id_to_word)
+                sentence_str = self._words_to_str(words, 40)
+                print('[{}] '.format(i) + sentence_str)
                 self._print_asterisk()
-                key = raw_input("Press any key to continue('x' to quit)...")
-                if key == 'q': break
+
+            key = raw_input("Press any key to continue('q' to quit)...")
+            if key == 'q': break
         self.sv.request_stop()
 
     def _print_asterisk(self):
