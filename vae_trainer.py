@@ -8,10 +8,40 @@ from wordvec import load_glove_embeddings
 import numpy as np
 import os
 
+from data import load_simple_questions_dataset
+
 FLAGS = tf.app.flags.FLAGS
 
 class VAETrainer(object):
     def __init__(self, config):
+        self.config = config
+
+        sq_dataset = load_simple_questions_dataset(self.config)
+        train_data, valid_data, embed_mat, word_to_id = sq_dataset
+        self.id_to_word = {i: w for w, i in word_to_id.items()}
+
+        # Generate input
+        train_input = InputProducer(data=train_data, word_to_id=word_to_id,
+                                    id_to_word=self.id_to_word, config=config)
+
+        # Build model
+        self.VAE = VariationalAutoencoder(input_producer= train_input,
+                                          embed_mat=embed_mat,
+                                          config=config,
+                                          is_train=FLAGS.is_train)
+
+        # Supervisor & Session
+        self.sv = tf.train.Supervisor(logdir=FLAGS.model_subdir,
+                                      save_model_secs=config.save_model_secs)
+
+        gpu_options = tf.GPUOptions(allow_growth=True)
+        sess_config = tf.ConfigProto(allow_soft_placement=True,
+                                     gpu_options=gpu_options)
+
+        self.sess = self.sv.PrepareSession(config=sess_config)
+
+
+    def _init_ptb(self, config):
 
         self.config = config
 

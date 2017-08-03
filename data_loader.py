@@ -5,7 +5,6 @@ from __future__ import print_function
 
 import collections
 import os
-import sys
 import copy
 
 import tensorflow as tf
@@ -18,11 +17,14 @@ PAD_TOKEN = u"<pad>"
 PAD_ID = 0
 EOS_ID = 1
 DROP_ID = 2
-SPECIAL_TOKENS = [PAD_TOKEN, EOS_TOKEN, DROP_TOKEN]
+UNK_ID = 3
+SPECIAL_TOKENS = [PAD_TOKEN, EOS_TOKEN, DROP_TOKEN, UNK_TOKEN]
+
 
 def _read_words(filename):
     with tf.gfile.GFile(filename, "r") as f:
         return f.read().decode("utf-8").split()
+
 
 def _read_lines(filename):
     lines = []
@@ -31,6 +33,7 @@ def _read_lines(filename):
             words = line.replace("\n",EOS_TOKEN).split()
             lines.append(words)
     return lines
+
 
 def _build_vocab(filename, max_vocab_size=None):
     # 10001 vocabulary size when maximum number is unset
@@ -43,9 +46,11 @@ def _build_vocab(filename, max_vocab_size=None):
             raise ValueError("max_vocab_size should be larger than "
                              "total vocabulary size of training dataset.")
             id_to_word = id_to_word[:max_vocab_size]
-    word_to_id = dict(zip(id_to_word, range(len(id_to_word))))
+    # word_to_id = dict(zip(id_to_word, range(len(id_to_word))))
+    word_to_id = {w: i for i, w in enumerate(id_to_word)}
     # if the words appear more often, id will be lower
     return word_to_id, id_to_word
+
 
 def _append_pads(line, max_sequence_length):
     num_pads = max_sequence_length - len(line)
@@ -53,14 +58,17 @@ def _append_pads(line, max_sequence_length):
     line.extend([PAD_ID for _ in range(num_pads)])
     return line
 
+
 def _line_to_word_ids_with_unkowns(line, word_to_id):
     return [word_to_id[word] if word in word_to_id else word_to_id[UNK_TOKEN]
                                                      for word in line]
+
 
 def _reverse_sequence(sequence):
     sequence_clone = copy.deepcopy(sequence)
     sequence_clone.reverse()
     return sequence_clone
+
 
 def _file_to_word_ids(filename, word_to_id):
     lines = _read_lines(filename)
@@ -81,6 +89,7 @@ def _file_to_word_ids(filename, word_to_id):
     # len(training sequence) = 42068
     return sequence, sequence_rev, sequence_length
 
+
 def get_raw_data_from_file(data_path=None, max_vocab_size=None):
     """
     Args:
@@ -90,9 +99,9 @@ def get_raw_data_from_file(data_path=None, max_vocab_size=None):
         tuple (train_data, valid_data, test_data, word_to_id, id_to_word)
         where each of the data objects can be passed to PTBIterator.
     """
-    train_path = os.path.join(data_path, "ptb.train.txt")
-    valid_path = os.path.join(data_path, "ptb.valid.txt")
-    test_path = os.path.join(data_path, "ptb.test.txt")
+    train_path = os.path.join(data_path, "train.txt")
+    valid_path = os.path.join(data_path, "valid.txt")
+    test_path = os.path.join(data_path, "test.txt")
 
     word_to_id, id_to_word = _build_vocab(train_path, max_vocab_size)
     train_data = _file_to_word_ids(train_path, word_to_id)
@@ -100,6 +109,7 @@ def get_raw_data_from_file(data_path=None, max_vocab_size=None):
     test_data = _file_to_word_ids(test_path, word_to_id)
 
     return train_data, valid_data, test_data, word_to_id, id_to_word
+
 
 class InputProducer(object):
 
