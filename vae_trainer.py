@@ -71,7 +71,7 @@ class VAETrainer(object):
             progress_bar.update(1)
             step += 1
             if step > self.config.max_step:
-                sv.request_stop()
+                self.sv.request_stop()
 
             # update KL anealing weight
             from math import cos, pi
@@ -131,8 +131,7 @@ class VAETrainer(object):
             z_a = np.random.normal(0, 1, (1, hidden_size))
             z_b = np.random.normal(0, 1, (1, hidden_size))
             diff = (z_b - z_a) / interval_num
-            intervals = [z_a + diff*i for i in range(batch_size) \
-                            if i<=interval_num else np.tile([0], hidden_size)]
+            intervals = [z_a + diff*i if i<=interval_num else np.tile([0], hidden_size)]
             z_batch = np.vstack(intervals)
             sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z_batch})
             self._print_asterisk()
