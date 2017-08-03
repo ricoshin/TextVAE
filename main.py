@@ -19,6 +19,7 @@ Usage:
 """
 flags = tf.app.flags
 flags.DEFINE_string("data_dir", "data", "data directory")
+flags.DEFINE_string("glove_dir", "data/glove", "GloVe wordvector directory")
 flags.DEFINE_string("config_dir", "config", "config(json file) directory")
 flags.DEFINE_string("model_dir", "models", "model super-directory")
 flags.DEFINE_string("model_name", None, "model name(sub-directory)")
@@ -40,6 +41,7 @@ def main(_):
     if FLAGS.model_name:
         FLAGS.model_subdir = os.path.join(FLAGS.model_dir, FLAGS.model_name)
     else:
+        FLAGS.model_name = "new_model"
         FLAGS.model_name = "{}_{}".format(FLAGS.model_name, time_str)
         FLAGS.model_subdir = os.path.join(FLAGS.model_dir, FLAGS.model_name)
     print("[*] MODEL directory: %s" % FLAGS.model_subdir)

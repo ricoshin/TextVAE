@@ -5,7 +5,7 @@
     "hidden_size":128,
     "embed_dim":300,
     "is_GRU":true,
-    "word_dropout_keep_prob":0.5,
+    "word_dropout_keep_prob":0.75,
     "max_grad_norm":5,
     "learning_rate":0.001
   },
@@ -13,9 +13,10 @@
     "max_step":50000,
     "print_step": 30,
     "save_model_secs": 60,
-    "KL_anealing_step":5000
+    "KL_anealing_step":20000,
+    "reload_embed":false
   },
   "sampling":{
-    "is_argmax_sampling":true
+    "is_argmax_sampling":false
  }
 }

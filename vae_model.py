@@ -12,7 +12,7 @@ from data_loader import DROP_ID, EOS_ID
 
 class VariationalAutoencoder(object):
 
-    def __init__(self, input_producer, config, is_train):
+    def __init__(self, input_producer, embed_mat, config, is_train):
 
         with tf.variable_scope("VAE") as var_scope:
             x_enc = input_producer.x_enc
@@ -20,16 +20,19 @@ class VariationalAutoencoder(object):
             y_dec = input_producer.y_dec
             len_enc = input_producer.len_enc
             len_dec = input_producer.len_dec
+
             max_len = input_producer.seq_max_length
             vocab_num = input_producer.vocab_num
             batch_size = config.batch_size
             hidden_size = config.hidden_size
             embed_dim = config.embed_dim
+
             is_GRU = config.is_GRU
             is_argmax_sampling = config.is_argmax_sampling
             word_keep_prob = config.word_dropout_keep_prob
             max_grad_norm = config.max_grad_norm
             learning_rate = config.learning_rate
+
             self.KL_weight = tf.Variable(0.0, "KL_weight")
             self.input_ids = y_dec
 
@@ -45,9 +48,14 @@ class VariationalAutoencoder(object):
             cell = _gru_cell if is_GRU else _lstm_cell
             self.initial_state = cell().zero_state(batch_size, tf.float32)
 
+
             # encoder
             with tf.device("/cpu:0"):
-                embedding = tf.get_variable("embedding", [vocab_num, embed_dim])
+                embed_init = tf.constant_initializer(embed_mat)\
+                                if (embed_mat is not None) else None
+                embedding = tf.get_variable("embedding", [vocab_num, embed_dim],
+                                             initializer=embed_init,
+                                             trainable=True)
                 in_enc = embedding_lookup(embedding, x_enc)
 
 
