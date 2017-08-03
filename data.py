@@ -5,6 +5,8 @@ import os
 import re
 import sys
 
+import tensorflow as tf
+
 from simple_questions import load_simple_questions
 from wordvec_sq import load_glove_vocab, load_glove_embeddings
 
@@ -22,6 +24,8 @@ EOS_ID = 1
 DROP_ID = 2
 UNK_ID = 3
 SPECIAL_TOKENS = [PAD_TOKEN, EOS_TOKEN, DROP_TOKEN, UNK_TOKEN]
+
+FLAGS = tf.app.flags.FLAGS
 
 
 def find_abbr_candidates(text):
@@ -72,7 +76,7 @@ def append_eos(sents):
     for sent in sents:
         sent.append(EOS_TOKEN)
         sent_lens.append(len(sent))
-    return setns, sent_lens
+    return sents, sent_lens
 
 
 def make_reverse(sents):
@@ -119,8 +123,8 @@ def remove_unknown_answers(data, vocab):
 
 
 def load_simple_questions_dataset(config, force_reload=False):
-    data_npz = os.path.join(config.data_dir, 'data.npz')
-    word2idx_txt = os.path.join(config.data_dir, 'word2idx.txt')
+    data_npz = os.path.join(FLAGS.data_dir, 'data.npz')
+    word2idx_txt = os.path.join(FLAGS.data_dir, 'word2idx.txt')
 
     if (os.path.exists(data_npz) and os.path.exists(word2idx_txt) and
             not force_reload):
@@ -139,11 +143,11 @@ def load_simple_questions_dataset(config, force_reload=False):
             reader = csv.reader(f, delimiter='\t')
             word2idx = {row[0]: int(row[1]) for row in reader}
 
-        train = train_ques, train_ques_rev, train_ans
-        valid = valid_ques, valid_ques_rev, valid_ans
+        train = train_ques, train_ques_rev, train_ques_len, train_ans
+        valid = valid_ques, valid_ques_rev, valid_ques_len, valid_ans
         return train, valid, embd_mat, word2idx
 
-    glove_vocab = load_glove_vocab(os.path.join(config.data_dir, 'glove'),
+    glove_vocab = load_glove_vocab(os.path.join(FLAGS.data_dir, 'glove'),
                                    '6B', config.embed_dim)
 
     train, valid, dataset_vocab = load_simple_questions(config)
@@ -165,17 +169,19 @@ def load_simple_questions_dataset(config, force_reload=False):
     vocab = dataset_vocab-unknowns
 
     train_q, train_q_len = append_eos(train_q)
-    valid_q, valid_q_len = append_eos(train_q)
+    valid_q, valid_q_len = append_eos(valid_q)
 
     train_q_rev = make_reverse(train_q)
     valid_q_rev = make_reverse(valid_q)
 
     max_len = max(len(sent) for sent in train_q+valid_q)
     train_q = append_pads(train_q, max_len)
+    train_q_rev = append_pads(train_q_rev, max_len)
     valid_q = append_pads(valid_q, max_len)
+    valid_q_rev = append_pads(valid_q_rev, max_len)
 
     vocab = SPECIAL_TOKENS + list(vocab)
-    embd_mat, word2idx = load_glove_embeddings(os.path.join(config.data_dir,
+    embd_mat, word2idx = load_glove_embeddings(os.path.join(FLAGS.data_dir,
                                                             'glove'),
                                                '6B', config.embed_dim, vocab)
 
@@ -200,6 +206,6 @@ def load_simple_questions_dataset(config, force_reload=False):
                      valid_ans=valid_a)
     np.savez(data_npz, **data_dict)
 
-    train = np.array(train_q), np.array(train_a)
-    valid = np.array(valid_q), np.array(valid_a)
+    train = tuple(map(np.array, [train_q, train_q_rev, train_q_len, train_a]))
+    valid = tuple(map(np.array, [valid_q, valid_q_rev, valid_q_len, valid_a]))
     return train, valid, embd_mat, word2idx

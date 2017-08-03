@@ -16,7 +16,7 @@ class VAETrainer(object):
     def __init__(self, config):
         self.config = config
 
-        sq_dataset = load_simple_questions_dataset(self.config)
+        sq_dataset = load_simple_questions_dataset(config)
         train_data, valid_data, embed_mat, word_to_id = sq_dataset
         self.id_to_word = {i: w for w, i in word_to_id.items()}
 

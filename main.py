@@ -16,7 +16,7 @@ Usage:
     e.g. $python main.py --model_dir=models/my_model_0727_131527
 """
 flags = tf.app.flags
-flags.DEFINE_string("data_dir", "data/SimpleQuestions", "data directory")
+flags.DEFINE_string("data_dir", "data", "data directory")
 flags.DEFINE_string("glove_dir", "data/glove", "GloVe wordvector directory")
 flags.DEFINE_string("config_dir", "config", "config(json file) directory")
 flags.DEFINE_string("model_dir", "models", "model super-directory")
