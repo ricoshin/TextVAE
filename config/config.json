@@ -17,6 +17,7 @@
     "reload_embed":false
   },
   "sampling":{
-    "is_argmax_sampling":false
+    "is_argmax_sampling":false,
+    "interpolate_samples":false
  }
 }

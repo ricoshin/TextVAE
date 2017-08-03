@@ -67,7 +67,10 @@ def main(_):
     if FLAGS.is_train:
         trainer.train()
     else:
-        trainer.sample()
+        if config.interpolate_samples:
+            trainer.interpolate_samples()
+        else:
+            trainer.sample()
 
 if __name__ == "__main__":
     tf.app.run()
