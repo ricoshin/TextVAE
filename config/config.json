@@ -18,6 +18,6 @@
   },
   "sampling":{
     "is_argmax_sampling":false,
-    "interpolate_samples":false
+    "interpolate_samples":true
  }
 }
