@@ -120,18 +120,24 @@ class InputProducer(object):
         self.sequence_length = data[2]
         self.sequence_number = len(self.sequence) # height
         self.seq_max_length = len(self.sequence[0]) # width
+        self.answer = data[3]
         self.name = name
         self.word_to_id = word_to_id
         self.id_to_word = id_to_word
         self.vocab_num = len(id_to_word)
 
-        self.x_enc, self.x_dec, self.y_dec, self.len_enc, self.len_dec = \
-            self.input_producer(self.sequence, self.sequence_reversed,
-                                self.sequence_length, self.sequence_number,
-                                self.batch_size, self.name)
+        inputs = self.input_producer(self.sequence,
+                                     self.sequence_reversed,
+                                     self.sequence_length,
+                                     self.answer,
+                                     self.sequence_number,
+                                     self.batch_size,
+                                     self.name)
+        self.x_enc, self.x_dec, self.y_dec = inputs[:3]
+        self.len_enc, self.len_dec, self.answ_disc = inputs[3:]
 
     def input_producer(self, sequence, sequence_reversed, sequence_length,
-                       sequence_number, batch_size, name=None):
+                       answer, sequence_number, batch_size, name=None):
         batch_num = sequence_number // batch_size
         sequence_length_minus_one = [x-1 for x in sequence_length]
         with tf.name_scope(name, "InputProducer"):
@@ -148,6 +154,9 @@ class InputProducer(object):
             tf_length_decoder = tf.convert_to_tensor(sequence_length,
                                                      name="seq_length_decoder",
                                                      dtype=tf.int32)
+            tf_answer = tf.convert_to_tensor(answer,
+                                             name="sequence",
+                                             dtype=tf.int32)
             print("[*] done!")
             i = tf.train.range_input_producer(batch_num, shuffle=False).dequeue()
 
@@ -155,6 +164,7 @@ class InputProducer(object):
             y_decoder = tf_sequence[i*batch_size:(i+1)*batch_size]
             length_encoder = tf_length_encoder[i*batch_size:(i+1)*batch_size]
             length_decoder = tf_length_decoder[i*batch_size:(i+1)*batch_size]
+            answer_disc = tf_answer[i*batch_size:(i+1)*batch_size]
 
             eos = tf.expand_dims(tf.constant([EOS_ID]*batch_size),1)
             x_decoder = tf.concat([eos, y_decoder],1)
@@ -164,5 +174,7 @@ class InputProducer(object):
             y_decoder.set_shape([batch_size, None])
             length_encoder.set_shape([batch_size])
             length_decoder.set_shape([batch_size])
+            answer_disc.set_shape([batch_size, 1])
 
-        return x_encoder, x_decoder, y_decoder, length_encoder, length_decoder
+        return (x_encoder, x_decoder, y_decoder, length_encoder,
+                length_decoder, answer_disc)

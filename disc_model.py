@@ -6,19 +6,30 @@ from tensorflow.python.layers.core import Dense
 
 
 class Discriminator(object):
-    def __init__(self, cfg, word_embd, max_ques_len):
+    def __init__(self, cfg, word_embd, max_ques_len, input_producer, generated=None):
+        batch_size = cfg.batch_size
         vocab_size = len(word_embd)
         with tf.variable_scope('disc'):
-            self.ques = tf.placeholder(tf.int32,
-                                       shape=[None, max_ques_len],
-                                       name='question')
-            self.ques_len = tf.placeholder(tf.int32,
-                                           shape=[None],
-                                           name='question_length')
-            self.answ = tf.placeholder(tf.int32,
-                                       shape=[None],
-                                       name='answer')
-            ques = embedding_lookup(word_embd, self.ques)
+            word_embd = tf.get_variable('word_embd',
+                                        shape=word_embd.shape,
+                                        initializer=tf.constant_initializer(word_embd))
+            if generated:
+                self.ques = generated['ques']
+                self.ques_len = generated['ques_len']
+
+                # soft embedding_lookup
+                ques = tf.reshape(self.ques, [-1, vocab_size])
+                ques = tf.matmul(ques, word_embd)
+                ques = tf.reshape(ques, [batch_size, -1, cfg.embed_dim])
+            else:
+                self.ques = tf.placeholder(tf.int32,
+                                           shape=[None, max_ques_len],
+                                           name='question')
+                self.ques_len = tf.placeholder(tf.int32,
+                                               shape=[None],
+                                               name='question_length')
+                ques = embedding_lookup(word_embd, self.ques)
+            self.answ = input_producer.answ_disc
             cell = GRUCell(cfg.hidden_size)
             _, state = dynamic_rnn(cell,
                                    ques,
