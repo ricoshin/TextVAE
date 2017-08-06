@@ -120,7 +120,7 @@ class VariationalAutoencoder(object):
             self.vars = tf.contrib.framework.get_variables(var_scope)
 
         # (ouputs, state, sequence_length)
-        (self.outputs, _, _) = out_tuple # final
+        (self.outputs, _, self.cell_outputs_len) = out_tuple # final
 
         # (cell_outputs, sample_ids)
         (self.cell_outputs, self.sampled_ids) = self.outputs
