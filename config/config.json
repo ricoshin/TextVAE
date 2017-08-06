@@ -13,7 +13,7 @@
     "max_step":50000,
     "print_step": 30,
     "save_model_secs": 60,
-    "KL_anealing_step":20000,
+    "KL_anealing_step":5000,
     "reload_embed":false
   },
   "sampling":{

@@ -1,9 +1,13 @@
 import os
 
 from nltk.tokenize import word_tokenize
+import tensorflow as tf
 
 
-def load_simple_questions(config, lower=True):
+FLAGS = tf.app.flags.FLAGS
+
+
+def load_simple_questions(lower=True):
     """
     Returns:
         (train, valid, vocab)
@@ -11,7 +15,7 @@ def load_simple_questions(config, lower=True):
         valid: validation set (questions, answers)
         vocab: set(str)
     """
-    data_dir = os.path.join(config.data_dir, 'SimpleQuestions')
+    data_dir = os.path.join(FLAGS.data_dir, 'SimpleQuestions')
     vocab = set()
 
     def parse_file(lines, vocab):

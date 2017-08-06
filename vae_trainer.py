@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import tensorflow as tf
 from data_loader import InputProducer
 from data_loader import get_raw_data_from_file
@@ -8,10 +10,48 @@ from wordvec import load_glove_embeddings
 import numpy as np
 import os
 
+from data import load_simple_questions_dataset
+from disc_model import Discriminator
+
 FLAGS = tf.app.flags.FLAGS
 
 class VAETrainer(object):
     def __init__(self, config):
+        self.config = config
+
+        sq_dataset = load_simple_questions_dataset(config)
+        train_data, valid_data, embed_mat, word_to_id = sq_dataset
+        self.id_to_word = {i: w for w, i in word_to_id.items()}
+
+        # Generate input
+        train_input = InputProducer(data=train_data, word_to_id=word_to_id,
+                                    id_to_word=self.id_to_word, config=config)
+
+        # Build model
+        self.VAE = VariationalAutoencoder(input_producer= train_input,
+                                          embed_mat=embed_mat,
+                                          config=config,
+                                          is_train=FLAGS.is_train)
+        generated = dict(ques=self.VAE.cell_outputs,
+                         ques_len=self.VAE.cell_outputs_len)
+        self.Disc = Discriminator(self.config,
+                                  embed_mat,
+                                  train_input.seq_max_length,
+                                  input_producer=train_input,
+                                  generated=generated)
+
+        # Supervisor & Session
+        self.sv = tf.train.Supervisor(logdir=FLAGS.model_subdir,
+                                      save_model_secs=config.save_model_secs)
+
+        gpu_options = tf.GPUOptions(allow_growth=True)
+        sess_config = tf.ConfigProto(allow_soft_placement=True,
+                                     gpu_options=gpu_options)
+
+        self.sess = self.sv.PrepareSession(config=sess_config)
+
+
+    def _init_ptb(self, config):
 
         self.config = config
 
@@ -81,6 +121,8 @@ class VAETrainer(object):
             self.VAE.assign_kl_weight(self.sess, new_kl_weight)
 
             feeds = {"train_op" : self.VAE.train_op}
+            feeds.update(dict(disc_pred=self.Disc.pred,
+                              disc_loss=self.Disc.loss))
 
             if is_print(step):
                 feeds.update({"train_op" : self.VAE.train_op,
@@ -90,14 +132,22 @@ class VAETrainer(object):
                               "AE_loss" : self.VAE.AE_loss_mean,
                               "KL_loss" : self.VAE.KL_loss_mean,
                               "KL_weight" : self.VAE.KL_weight})
+                feeds.update(dict(disc_pred=self.Disc.pred,
+                                  disc_loss=self.Disc.loss,
+                                  disc_label=self.Disc.answ))
 
             result = self.sess.run(feeds)
 
             if is_print(step):
-                print("[*] AE_loss: {} / KL_loss: {} / KL weight : {}".format(
-                      result["AE_loss"],result["KL_loss"],result['KL_weight']))
+                print("[*] AE_loss: {} / KL_loss: {} / KL weight : {}"
+                      " / Disc loss : {}"
+                      "".format(result["AE_loss"], result["KL_loss"],
+                                result['KL_weight'], result['disc_loss']))
                 (in_ids, out_ids) = (result['input_ids'], result['sampled_ids'])
+                answer = dict(pred=result['disc_pred'],
+                              label=result['disc_label'])
                 self._print_reconst_samples(in_ids, out_ids, self.id_to_word,
+                                            answer,
                                             sentence_num=5, max_words=40)
                 #import pdb; pdb.set_trace()
                 #raw_input("Press Enter to continue...")
@@ -162,16 +212,20 @@ class VAETrainer(object):
             words[:max_words].append("...")
         return " ".join(words)
 
-    def _print_reconst_samples(self, in_ids, out_ids, id_to_word,
+    def _print_reconst_samples(self, in_ids, out_ids, id_to_word, answer,
                               sentence_num, max_words):
         self._print_asterisk()
-        for i in range(sentence_num):
-            # covert from ids to words using 'id_to_word' list
-            in_words = self._ids_to_words(in_ids[i], id_to_word)
-            out_words = self._ids_to_words(out_ids[i], id_to_word)
 
-            in_str = self._words_to_str(in_words, max_words)
-            out_str = self._words_to_str(out_words, max_words)
+        def ids_to_str(word_ids):
+            words = self._ids_to_words(word_ids, id_to_word)
+            return self._words_to_str(words, max_words)
+
+        for i in range(sentence_num):
+            in_str = ids_to_str(in_ids[i])
+            out_str = ids_to_str(out_ids[i])
+            answ_exp_str = ids_to_str(answer['label'][i])
+            answ_act_str = ids_to_str([answer['pred'][i]])
 
             print("[X] " + in_str + "\n" + "[Y] " + out_str)
+            print('[A] Expected:', answ_exp_str, '/', 'Actual:', answ_act_str)
             self._print_asterisk()

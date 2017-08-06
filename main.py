@@ -3,10 +3,8 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-import reader
 import os
 import json
-import struct
 from datetime import datetime
 from shutil import copyfile
 from vae_trainer import VAETrainer

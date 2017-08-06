@@ -3,3 +3,4 @@ logs/
 *.npz
 data/glove
 word2idx.txt
+models/
