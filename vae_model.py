@@ -90,21 +90,15 @@ class VariationalAutoencoder(object):
                 in_dec = embedding_lookup(embedding, x_dec)
 
             with tf.variable_scope("decoder"):
-                if is_train: # for training
-                    helper = WordDropoutTrainingHelper(
-                                               inputs=in_dec,
-                                               sequence_length=len_dec,
-                                               embedding=embedding,
-                                               dropout_keep_prob=word_keep_prob,
-                                               drop_token_id=DROP_ID)
-                else : # for sampling
-                    SamplingHelper = (GreedyEmbeddingHelper \
-                        if is_argmax_sampling else SampleEmbeddingHelper)
-                    start_tokens = tf.tile([EOS_ID], [batch_size])
 
-                    helper = SamplingHelper(embedding=embedding,
-                                            start_tokens=start_tokens,
-                                            end_token=EOS_ID)
+                helper = WordDropoutTrainingHelper(
+                                      inputs=in_dec,
+                                      sequence_length=len_dec,
+                                      embedding=embedding,
+                                      dropout_keep_prob=word_keep_prob,
+                                      drop_token_id=DROP_ID,
+                                      is_argmax_sampling=is_argmax_sampling)
+                
                 # projection layer
                 output_layer = Dense(units=vocab_num,
                                      activation=None,
