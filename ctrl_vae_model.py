@@ -57,21 +57,20 @@ class VariationalAutoencoder(object):
 
 
             self.z = self._encoder(embedding, cell, in_enc, len_enc,
-                                   initial_state, hidden_size)
+                                   initial_state, hidden_size, reuse=False)
 
             out_tuple = self._decoder(self.z, embedding, cell, in_dec, len_dec,
                                       word_keep_prob, batch_size, vocab_num,
                                       is_train)
 
-            # get all the variables in this scope
-            self.vars = tf.contrib.framework.get_variables(var_scope)
+            self._encoder(out_tuple[0][0],
+            # (ouputs, state, sequence_length)
+            (self.outputs, _, _) = out_tuple # final
+            # (cell_outputs, sample_ids)
+            (self.cell_outputs, self.sampled_ids) = self.outputs
 
-        # (ouputs, state, sequence_length)
-        (self.outputs, _, _) = out_tuple # final
-
-        # (cell_outputs, sample_ids)
-        (self.cell_outputs, self.sampled_ids) = self.outputs
-
+        # get all the variables in this scope
+        self.vars = tf.contrib.framework.get_variables(var_scope)
         # compute softmax loss (reconstruction)
         len_out = tf.reduce_max(len_dec)
         targets = y_dec[:,:len_out]
@@ -122,8 +121,9 @@ class VariationalAutoencoder(object):
         self.summary_op = tf.summary.merge_all()
         # print('end-of-function')
 
-    def _encoder(self, embedding, cell, in_enc, len_enc, initial_state, hidden_size):
-        with tf.variable_scope("encoder"):
+    def _encoder(self, embedding, cell, in_enc, len_enc, initial_state,
+                 hidden_size, reuse):
+        with tf.variable_scope("encoder", reuse=reuse):
 
             with tf.device("/cpu:0"):
                 in_enc = embedding_lookup(embedding, x_enc)

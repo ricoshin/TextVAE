@@ -24,8 +24,8 @@ class WordDropoutTrainingHelper(TrainingHelper):
   """A training helper that adds word dropout."""
 
   def __init__(self, inputs, sequence_length, embedding, dropout_keep_prob,
-               drop_token_id, time_major=False, seed=None, dropout_seed=None,
-               name=None):
+               drop_token_id, is_argmax_sampling, time_major=False, seed=None,
+               dropout_seed=None, name=None):
     with ops.name_scope(name, "WordDropoutTrainingHelper",
                         [embedding, dropout_keep_prob]):
       if callable(embedding):
@@ -42,6 +42,7 @@ class WordDropoutTrainingHelper(TrainingHelper):
       self._seed = seed
       self._dropout_seed = dropout_seed
       self._drop_token_id = drop_token_id
+      self.is_argmax_sampling = is_argmax_sampling
       super(WordDropoutTrainingHelper, self).__init__(
           inputs=inputs,
           sequence_length=sequence_length,
@@ -52,21 +53,34 @@ class WordDropoutTrainingHelper(TrainingHelper):
     return super(WordDropoutTrainingHelper, self).initialize(name=name)
 
   def sample(self, time, outputs, state, name=None):
-    return super(WordDropoutTrainingHelper, self).sample(time=time,
-                                                         outputs=outputs,
-                                                         state=state,
-                                                         name=name)
+
+    del time, state  # unused by sample_fn
+      # Outputs are logits, we sample instead of argmax (greedy).
+    if not isinstance(outputs, ops.Tensor):
+      raise TypeError("Expected outputs to be a single Tensor, got: %s" %
+                      type(outputs))
+
+    def _greedy_embedding():
+        return math_ops.cast(math_ops.argmax(outputs, axis=-1), dtypes.int32)
+
+    def _sample_embedding():
+        sample_id_sampler = categorical.Categorical(logits=outputs)
+        return sample_id_sampler.sample(seed=self._seed)
+
+    return control_flow_ops.cond(pred=self.is_argmax_sampling,
+                                 true_fn=_greedy_embedding,
+                                 false_fn=_sample_embedding)
 
   def next_inputs(self, time, outputs, state, sample_ids, name=None):
     with ops.name_scope(name, "WordDropoutTrainingHelper",
                         [time, outputs, state, sample_ids]):
       (finished, base_next_inputs, state) = (
-          super(WordDropoutTrainingHelper, self).next_inputs(
-              time=time,
-              outputs=outputs,
-              state=state,
-              sample_ids=sample_ids,
-              name=name))
+          super(WordDropoutTrainingHelper, self).next_inputs(time=time,
+                                                             outputs=outputs,
+                                                             state=state,
+                                                             sample_ids=sample_ids,
+                                                             name=name))
+      # sample for greey embedding
 
       def maybe_dropout():
         """Perform word dropout."""
