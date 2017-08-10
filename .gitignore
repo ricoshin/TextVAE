@@ -1,6 +1,2 @@
+__pycache__
 .ftpconfig
-logs/
-*.npz
-data/glove
-word2idx.txt
-models/

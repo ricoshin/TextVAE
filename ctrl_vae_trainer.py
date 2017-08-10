@@ -3,7 +3,7 @@ from __future__ import print_function
 import tensorflow as tf
 from data_loader import InputProducer
 from data_loader import get_raw_data_from_file
-from ctrl_vae_model import VariationalAutoencoder
+from ctrl_vae_model import CtrlVAEModel
 from data_loader import PAD_ID, EOS_ID
 from tqdm import tqdm
 from wordvec import load_glove_embeddings
@@ -11,11 +11,10 @@ import numpy as np
 import os
 
 from data import load_simple_questions_dataset
-from disc_model import Discriminator
 
 FLAGS = tf.app.flags.FLAGS
 
-class VAETrainer(object):
+class CtrlVAETrainer(object):
     def __init__(self, config):
         self.config = config
 
@@ -28,17 +27,10 @@ class VAETrainer(object):
                                     id_to_word=self.id_to_word, config=config)
 
         # Build model
-        self.VAE = VariationalAutoencoder(input_producer= train_input,
-                                          embed_mat=embed_mat,
-                                          config=config,
-                                          is_train=FLAGS.is_train)
-        generated = dict(ques=self.VAE.cell_outputs,
-                         ques_len=self.VAE.outputs_len)
-        self.Disc = Discriminator(self.config,
-                                  embed_mat,
-                                  train_input.seq_max_length,
-                                  input_producer=train_input,
-                                  generated=generated)
+        self.model = CtrlVAEModel(input_producer= train_input,
+                                  embed_mat=embed_mat,
+                                  config=config,
+                                  is_train=FLAGS.is_train)
 
         # Supervisor & Session
         self.sv = tf.train.Supervisor(logdir=FLAGS.model_subdir,
@@ -50,59 +42,15 @@ class VAETrainer(object):
 
         self.sess = self.sv.PrepareSession(config=sess_config)
 
-
-    def _init_ptb(self, config):
-
-        self.config = config
-
-        # Raw data load (PTB dataset)
-        raw_data = get_raw_data_from_file(data_path=FLAGS.data_dir,
-                                          max_vocab_size=config.max_vocab_size)
-
-        train_data, valid_data, test_data, word_to_id, id_to_word = raw_data
-
-        embed_file_path = os.path.join(FLAGS.data_dir, 'embed_matrix.npy')
-
-        if os.path.exists(embed_file_path) and not config.reload_embed:
-            print("[*] loading embedding matrix from 'embed_matrix.npy'...")
-            embed_mat = np.load(embed_file_path)
-            print("[*] done!")
-        else:
-            print("[*] initially building embedding matrix...")
-            embed_mat = load_glove_embeddings(data_dir=FLAGS.glove_dir,
-                                              num_tokens='42B',
-                                              embed_dim=config.embed_dim,
-                                              word_to_id=word_to_id)
-            print("[*] and saving data as file...")
-            np.save(embed_file_path, embed_mat)
-            print("[*] done!")
-
-        self.id_to_word = id_to_word
-
-        # Generate input
-        train_input = InputProducer(data=train_data, word_to_id=word_to_id,
-                                    id_to_word=id_to_word, config=config)
-
-        # Build model
-        self.VAE = VariationalAutoencoder(input_producer= train_input,
-                                          embed_mat=embed_mat,
-                                          config=config,
-                                          is_train=FLAGS.is_train)
-
-        # Supervisor & Session
-        self.sv = tf.train.Supervisor(logdir=FLAGS.model_subdir,
-                                      save_model_secs=config.save_model_secs)
-
-        gpu_options = tf.GPUOptions(allow_growth=True)
-        sess_config = tf.ConfigProto(allow_soft_placement=True,
-                                     gpu_options=gpu_options)
-
-        self.sess = self.sv.PrepareSession(config=sess_config)
+    def train2(self):
+        self.sess.run(self.model.test)
+        import ipdb; ipdb.set_trace()
+        print("dd")
 
     def train(self):
         # Initialize progress step
         progress_bar = tqdm(total=self.config.max_step)
-        step = self.sess.run(self.VAE.global_step)
+        step = self.sess.run(self.model.global_step)
         progress_bar.update(step)
         is_print = (lambda step : step % self.config.print_step == 0)
 
@@ -115,41 +63,70 @@ class VAETrainer(object):
 
             # update KL anealing weight
             from math import cos, pi
-            if step < self.config.KL_anealing_step:
-                new_kl_weight = (-cos(pi*step/self.config.KL_anealing_step)+1)/2
-            else: new_kl_weight = 1
-            self.VAE.assign_kl_weight(self.sess, new_kl_weight)
+            aneal_step = self.config.kl_anealing_step
+            if step < aneal_step:
+                new_kl_weight = (-cos(pi*step/aneal_step)+1)/2
+                self.model.assign_kl_weight(self.sess, new_kl_weight)
 
-            feeds = {"train_op" : self.VAE.train_op}
-            feeds.update(dict(disc_pred=self.Disc.pred,
-                              disc_loss=self.Disc.loss))
+            aneal_step = self.config.gen_lr_anealing_step
+            max_lr = self.config.learning_rate
+            if step < aneal_step:
+                new_gen_lr = (-cos(pi*step/aneal_step)+1)/2*max_lr
+                self.model.assign_gen_lr(self.sess, new_gen_lr)
+
+
+            feeds = {"vae_train" : self.model.vae_train,
+                     "gen_train" : self.model.gen_train,
+                     "dis_train" : self.model.dis_train}
 
             if is_print(step):
-                feeds.update({"train_op" : self.VAE.train_op,
-                              "summary_op" : self.VAE.summary_op,
-                              "input_ids" : self.VAE.input_ids,
-                              "sampled_ids" : self.VAE.sampled_ids,
-                              "AE_loss" : self.VAE.AE_loss_mean,
-                              "KL_loss" : self.VAE.KL_loss_mean,
-                              "KL_weight" : self.VAE.KL_weight})
-                feeds.update(dict(disc_pred=self.Disc.pred,
-                                  disc_loss=self.Disc.loss,
-                                  disc_label=self.Disc.answ))
+                feeds.update({"summary_op" : self.model.summary_op,
+                              "input_ids" : self.model.input_ids,
+                              "answer" : self.model.answer,
+                              "vae_sample" : self.model.vae_sample,
+                              "gen_sample" : self.model.gen_sample,
+                              "gen_c_sample" : self.model.gen_c_sample,
+                              "dis_sample" : self.model.dis_sample,
+                              "ae_loss" : self.model.ae_loss_mean,
+                              "kl_loss" : self.model.kl_loss_mean,
+                              "kl_weight" : self.model.kl_weight,
+                              "gen_lr" : self.model.gen_lr})
 
             result = self.sess.run(feeds)
 
             if is_print(step):
                 print("[*] AE_loss: {} / KL_loss: {} / KL weight : {}"
-                      " / Disc loss : {}"
-                      "".format(result["AE_loss"], result["KL_loss"],
-                                result['KL_weight'], result['disc_loss']))
-                (in_ids, out_ids) = (result['input_ids'], result['sampled_ids'])
-                answer = dict(pred=result['disc_pred'],
-                              label=result['disc_label'])
-                self._print_reconst_samples(in_ids, out_ids, self.id_to_word,
-                                            answer,sentence_num=5,max_words=40)
+                      " / Generator learning rate : {}"
+                      "".format(result["ae_loss"], result["kl_loss"],
+                                result['kl_weight'], result['gen_lr']))
+
+                self._print_results(result, self.id_to_word, 30)
                 #import pdb; pdb.set_trace()
                 #raw_input("Press Enter to continue...")
+
+    def _print_results(self, result, id_to_word, max_words):
+        self._print_asterisk()
+
+        def ids_to_str(word_ids):
+            words = self._ids_to_words(word_ids, id_to_word)
+            return self._words_to_str(words, max_words)
+
+        vae_in = ids_to_str(result['input_ids'][0])
+        vae_out = ids_to_str(result['vae_sample'][0])
+        gen_in = ids_to_str(result['answer'][0])
+        gen_out = ids_to_str(result['gen_sample'][0])
+        gen_pred = ids_to_str([result['gen_c_sample'][0]])
+        dis_out = ids_to_str([result['dis_sample'][0]])
+
+        print('## VAE ##')
+        print("[Q] " + vae_in + "\n" + "[Q_hat] " + vae_out)
+        print("## Generator ##")
+        print("[Q_sampled] " + gen_out)
+        print("[A] actual: " + gen_in + " / predicted: " + gen_pred)
+        print("## Discriminator ##")
+        print("[Q] " + vae_in)
+        print("[A] actual: " + gen_in + " / predicted: " + dis_out)
+        self._print_asterisk()
 
     def sample(self):
         batch_size = self.config.batch_size

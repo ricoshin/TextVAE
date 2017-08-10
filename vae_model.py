@@ -8,7 +8,7 @@ from tensorflow.contrib.framework import get_or_create_global_step
 from tensorflow.python.ops.nn import embedding_lookup, dynamic_rnn
 from tensorflow.python.layers.core import Dense
 from decoder_helper import WordDropoutTrainingHelper
-from data_loader import DROP_ID, EOS_ID
+from data_loader import UNK_ID, EOS_ID
 
 class VariationalAutoencoder(object):
 
@@ -96,9 +96,9 @@ class VariationalAutoencoder(object):
                                       sequence_length=len_dec,
                                       embedding=embedding,
                                       dropout_keep_prob=word_keep_prob,
-                                      drop_token_id=DROP_ID,
+                                      drop_token_id=UNK_ID,
                                       is_argmax_sampling=is_argmax_sampling)
-                
+
                 # projection layer
                 output_layer = Dense(units=vocab_num,
                                      activation=None,
@@ -128,14 +128,15 @@ class VariationalAutoencoder(object):
         # compute softmax loss (reconstruction)
         len_out = tf.reduce_max(len_dec)
         targets = y_dec[:,:len_out]
+        weights = tf.sequence_mask(self.cell_outputs_len, dtype=tf.float32)
+
         softmax_loss = sequence_loss(logits=self.cell_outputs,
                                      targets=targets,
-                                     weights=tf.ones([batch_size, len_out]),
-                                     average_across_timesteps=False,
+                                     weights=weights,
+                                     average_across_timesteps=True,
                                      average_across_batch=True)
 
-        self.AE_loss = tf.reduce_sum(softmax_loss)
-        self.AE_loss_mean = tf.reduce_mean(softmax_loss)
+        self.AE_loss = self.AE_loss_mean = softmax_loss
 
         # compute KL loss (regularization)
         KL_term = 1 + logvar - tf.pow(mu, 2) - tf.exp(logvar)

@@ -15,7 +15,7 @@ def load_simple_questions(lower=True):
         valid: validation set (questions, answers)
         vocab: set(str)
     """
-    data_dir = os.path.join(FLAGS.data_dir, 'SimpleQuestions')
+    data_dir = os.path.join(FLAGS.data_dir, 'simple_questions')
     vocab = set()
 
     def parse_file(lines, vocab):

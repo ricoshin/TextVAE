@@ -122,12 +122,13 @@ def remove_unknown_answers(data, vocab):
     return (questions, answers), new_vocab
 
 
-def load_simple_questions_dataset(config, force_reload=False):
+def load_simple_questions_dataset(config):
+
     data_npz = os.path.join(FLAGS.data_dir, 'data.npz')
     word2idx_txt = os.path.join(FLAGS.data_dir, 'word2idx.txt')
 
     if (os.path.exists(data_npz) and os.path.exists(word2idx_txt) and
-            not force_reload):
+            not config.force_embed_reload):
         npz = np.load(data_npz)
         embd_mat = npz['embd_mat']
         train_ques = npz['train_ques'].astype(np.int32)

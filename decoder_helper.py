@@ -5,6 +5,7 @@ from __future__ import print_function
 import abc
 import six
 
+import tensorflow as tf
 from tensorflow.contrib.seq2seq.python.ops import decoder
 from tensorflow.contrib.seq2seq.python.ops.helper import TrainingHelper
 from tensorflow.python.framework import dtypes
@@ -19,12 +20,13 @@ from tensorflow.python.ops import tensor_array_ops
 from tensorflow.python.ops.distributions import bernoulli
 from tensorflow.python.ops.distributions import categorical
 from tensorflow.python.util import nest
+from tensorflow.python.ops.variables import Variable
 
 class WordDropoutTrainingHelper(TrainingHelper):
   """A training helper that adds word dropout."""
 
   def __init__(self, inputs, sequence_length, embedding, dropout_keep_prob,
-               drop_token_id, is_argmax_sampling, time_major=False, seed=None,
+               drop_token_id, time_major=False, seed=None,
                dropout_seed=None, name=None):
     with ops.name_scope(name, "WordDropoutTrainingHelper",
                         [embedding, dropout_keep_prob]):
@@ -42,7 +44,7 @@ class WordDropoutTrainingHelper(TrainingHelper):
       self._seed = seed
       self._dropout_seed = dropout_seed
       self._drop_token_id = drop_token_id
-      self.is_argmax_sampling = is_argmax_sampling
+
       super(WordDropoutTrainingHelper, self).__init__(
           inputs=inputs,
           sequence_length=sequence_length,
@@ -52,24 +54,11 @@ class WordDropoutTrainingHelper(TrainingHelper):
   def initialize(self, name=None):
     return super(WordDropoutTrainingHelper, self).initialize(name=name)
 
-  def sample(self, time, outputs, state, name=None):
-
-    del time, state  # unused by sample_fn
-      # Outputs are logits, we sample instead of argmax (greedy).
-    if not isinstance(outputs, ops.Tensor):
-      raise TypeError("Expected outputs to be a single Tensor, got: %s" %
-                      type(outputs))
-
-    def _greedy_embedding():
-        return math_ops.cast(math_ops.argmax(outputs, axis=-1), dtypes.int32)
-
-    def _sample_embedding():
-        sample_id_sampler = categorical.Categorical(logits=outputs)
-        return sample_id_sampler.sample(seed=self._seed)
-
-    return control_flow_ops.cond(pred=self.is_argmax_sampling,
-                                 true_fn=_greedy_embedding,
-                                 false_fn=_sample_embedding)
+  def sample(self, time, outputs, name=None, **unused_kwargs):
+    with ops.name_scope(name, "WordDropoutTrainingHelper", [time, outputs]):
+      sample_ids = math_ops.cast(
+          math_ops.argmax(outputs, axis=-1), dtypes.int32)
+      return sample_ids
 
   def next_inputs(self, time, outputs, state, sample_ids, name=None):
     with ops.name_scope(name, "WordDropoutTrainingHelper",
@@ -80,7 +69,7 @@ class WordDropoutTrainingHelper(TrainingHelper):
                                                              state=state,
                                                              sample_ids=sample_ids,
                                                              name=name))
-      # sample for greey embedding
+      # sample for greedy embedding
 
       def maybe_dropout():
         """Perform word dropout."""
@@ -105,7 +94,8 @@ class WordDropoutTrainingHelper(TrainingHelper):
         # gather inputs in corresponding indices
         keeping_inputs = array_ops.gather(base_next_inputs, where_keeping_flat)
         dropout_inputs_ids = array_ops.gather(drop_ids, where_dropout_flat)
-        dropout_inputs = self._embedding_fn(dropout_inputs_ids)
+        with tf.device("/cpu:0"):
+            dropout_inputs = self._embedding_fn(dropout_inputs_ids)
         base_shape = array_ops.shape(base_next_inputs)
         return (array_ops.scatter_nd(indices=where_keeping,
                                      updates=keeping_inputs,
