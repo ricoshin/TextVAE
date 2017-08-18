@@ -2,7 +2,7 @@
   "model": {
     "max_vocab_size":null,
     "batch_size":64,
-    "hidden_size":100,
+    "hidden_size":300,
     "embed_dim":300,
     "is_GRU":true,
     "word_dropout_keep_prob":0.75,
@@ -16,8 +16,7 @@
     "kl_anealing_step":5000,
     "gen_lr_anealing_step":25000,
     "is_reload_embed":false,
-    "is_trainable_embed":false,
-    "force_embed_reload":true
+    "is_trainable_embed":true
   },
   "sampling":{
     "is_argmax_sampling":true,

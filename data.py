@@ -128,7 +128,7 @@ def load_simple_questions_dataset(config):
     word2idx_txt = os.path.join(FLAGS.data_dir, 'word2idx.txt')
 
     if (os.path.exists(data_npz) and os.path.exists(word2idx_txt) and
-            not config.force_embed_reload):
+            not config.is_reload_embed):
         npz = np.load(data_npz)
         embd_mat = npz['embd_mat']
         train_ques = npz['train_ques'].astype(np.int32)

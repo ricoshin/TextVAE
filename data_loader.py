@@ -63,7 +63,6 @@ def _line_to_word_ids_with_unkowns(line, word_to_id):
     return [word_to_id[word] if word in word_to_id else word_to_id[UNK_TOKEN]
                                                      for word in line]
 
-
 def _reverse_sequence(sequence):
     sequence_clone = copy.deepcopy(sequence)
     sequence_clone.reverse()
