@@ -63,6 +63,7 @@ def _line_to_word_ids_with_unkowns(line, word_to_id):
     return [word_to_id[word] if word in word_to_id else word_to_id[UNK_TOKEN]
                                                      for word in line]
 
+
 def _reverse_sequence(sequence):
     sequence_clone = copy.deepcopy(sequence)
     sequence_clone.reverse()
@@ -113,13 +114,14 @@ def get_raw_data_from_file(data_path=None, max_vocab_size=None):
 class InputProducer(object):
 
     def __init__(self, data, word_to_id, id_to_word, config, name=None):
+        # import ipdb; ipdb.set_trace()
         self.batch_size = config.batch_size
-        self.sequence = data[0]
-        self.sequence_reversed = data[1]
-        self.sequence_length = data[2]
+        self.sequence = data.q
+        self.sequence_reversed = data.q_rev
+        self.sequence_length = data.q_len
         self.sequence_number = len(self.sequence) # height
-        self.seq_max_length = len(self.sequence[0]) # width
-        self.answer = data[3]
+        self.seq_max_length = len(self.sequence[0]) # width 어차피 padding했음
+        self.answer = data.a
         self.name = name
         self.word_to_id = word_to_id
         self.id_to_word = id_to_word

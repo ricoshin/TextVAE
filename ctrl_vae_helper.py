@@ -10,7 +10,7 @@ from tensorflow.python.ops.nn import embedding_lookup, dynamic_rnn
 from tensorflow.python.ops.nn import softmax, softmax_cross_entropy_with_logits
 from tensorflow.python.ops.losses.losses import mean_pairwise_squared_error
 from tensorflow.python.layers.core import Dense, dense
-from decoder_helper import DecoderTrainingHelper
+from decoder_helper import WordDropoutTrainingHelper
 from data_loader import UNK_ID, EOS_ID
 
 class CtrlVAEModelingHelper(object):
@@ -80,9 +80,11 @@ class CtrlVAEModelingHelper(object):
             return z, mu, logvar
 
     def decoder(self, initial_state, x_dec_onehot, len_dec,
-                teacher_forcing_prob, dropout_keep_prob, reuse=False):
+                is_teacher_forcing=False, reuse=False):
         # decoder
         with tf.variable_scope("decoder", reuse=reuse):
+            dropout_keep_prob = self.config.word_dropout_keep_prob
+            is_argmax_sampling = self.config.is_argmax_sampling
             in_dec = self._soft_embedding_lookup(self.embed, x_dec_onehot)
 
             initial_state = dense(inputs=initial_state,
@@ -92,14 +94,22 @@ class CtrlVAEModelingHelper(object):
                                   trainable=True,
                                   name='initial_layer')
 
-            helper = DecoderTrainingHelper(
-                            inputs=in_dec,
-                            sequence_length=len_dec,
-                            embedding=self.embed,
-                            teacher_forcing_prob=teacher_forcing_prob,
-                            dropout_keep_prob=dropout_keep_prob,
-                            drop_token_id=UNK_ID)
+            if is_teacher_forcing: # for training
+                assert(dropout_keep_prob is not None)
+                helper = WordDropoutTrainingHelper(
+                                     inputs=in_dec,
+                                     sequence_length=len_dec,
+                                     embedding=self.embed,
+                                     dropout_keep_prob=dropout_keep_prob,
+                                     drop_token_id=UNK_ID)
+            else : # for sampling
+                SamplingHelper = (GreedyEmbeddingHelper \
+                    if is_argmax_sampling else SampleEmbeddingHelper)
+                start_tokens = tf.tile([EOS_ID], [self.config.batch_size])
 
+                helper = SamplingHelper(embedding=self.embed,
+                                        start_tokens=start_tokens,
+                                        end_token=EOS_ID)
             # projection layer
             output_layer = Dense(units=self.config.vocab_num,
                                  activation=None,

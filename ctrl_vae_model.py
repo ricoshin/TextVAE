@@ -10,6 +10,7 @@ from tensorflow.python.ops.nn import embedding_lookup, dynamic_rnn
 from tensorflow.python.ops.nn import softmax, softmax_cross_entropy_with_logits
 from tensorflow.python.ops.losses.losses import mean_pairwise_squared_error
 from tensorflow.python.layers.core import Dense, dense
+from decoder_helper import WordDropoutTrainingHelper
 from data_loader import UNK_ID, EOS_ID
 from ctrl_vae_helper import CtrlVAEModelingHelper
 
@@ -28,7 +29,7 @@ class CtrlVAEModel(object):
         max_len = input_producer.seq_max_length
         vocab_num = input_producer.vocab_num
         config.update(**dict(max_len=max_len, vocab_num=vocab_num))
-
+        # import ipdb; ipdb.set_trace()
         self.kl_weight = tf.Variable(0.0, "KL_weight")
         self.input_ids = y_dec
 
@@ -55,8 +56,7 @@ class CtrlVAEModel(object):
             out_tuple = modeler.decoder(initial_state=vae_represent,
                                         x_dec_onehot=x_dec_onehot,
                                         len_dec=len_dec,
-                                        teacher_forcing_prob=1.0,
-                                        dropout_keep_prob=0.8)
+                                        is_teacher_forcing=True)
 
             (vae_outputs, vae_state, vae_outputs_len) = out_tuple # final
             (self.vae_output, self.vae_sample) = vae_outputs
@@ -74,8 +74,7 @@ class CtrlVAEModel(object):
             out_tuple = modeler.decoder(initial_state=gen_represent,
                                         x_dec_onehot=x_dec_onehot,
                                         len_dec=len_dec,
-                                        teacher_forcing_prob=0.0,
-                                        dropout_keep_prob=1.0,
+                                        is_teacher_forcing=True,
                                         reuse=True)
 
             (gen_outputs, gen_state, gen_outputs_len) = out_tuple # final

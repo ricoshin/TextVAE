@@ -2,8 +2,8 @@
   "model": {
     "max_vocab_size":null,
     "batch_size":64,
-    "hidden_size":300,
-    "embed_dim":300,
+    "hidden_size":100,
+    "embed_dim":50,
     "is_GRU":true,
     "word_dropout_keep_prob":0.75,
     "max_grad_norm":5,
@@ -16,10 +16,17 @@
     "kl_anealing_step":5000,
     "gen_lr_anealing_step":20000,
     "is_reload_embed":false,
-    "is_trainable_embed":false
+    "is_trainable_embed":false,
+    "force_embed_reload":true
   },
   "sampling":{
     "is_argmax_sampling":true,
-    "is_interpolation":false
+    "interpolate_samples":false
+ },
+ "data":{
+   "data_name":"simple_questions",
+   "data_type":"train",
+   "num_of_word_of_answer_is_one":true
  }
+
 }

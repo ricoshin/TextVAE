@@ -11,20 +11,25 @@ import numpy as np
 import os
 
 from data import load_simple_questions_dataset
+from data import load_dataset
 
 FLAGS = tf.app.flags.FLAGS
 
 class CtrlVAETrainer(object):
     def __init__(self, config):
         self.config = config
-
-        sq_dataset = load_simple_questions_dataset(config)
-        train_data, valid_data, embed_mat, self.word_to_id = sq_dataset
-        self.id_to_word = {i: w for w, i in self.word_to_id.items()}
-
+        dataset = load_dataset(config)
+        # sq_dataset = load_simple_questions_dataset(config)
+        (train_data, embed_mat, word_to_id, id_to_word) = (dataset.train,
+                                                        dataset.embd_mat,
+                                                        dataset.word2idx,
+                                                        dataset.idx2word)
+        # self.id_to_word = {i: w for w, i in word_to_id.items()}
+        self.id_to_word = id_to_word
+        self.word_to_id = word_to_id
         # Generate input
-        train_input = InputProducer(data=train_data, word_to_id=self.word_to_id,
-                                    id_to_word=self.id_to_word, config=config)
+        train_input = InputProducer(data=train_data, word_to_id=word_to_id,
+                                    id_to_word=id_to_word, config=config)
 
         # Build model
         self.model = CtrlVAEModel(input_producer= train_input,
@@ -44,7 +49,7 @@ class CtrlVAETrainer(object):
 
     def train2(self):
         self.sess.run(self.model.test)
-        import ipdb; ipdb.set_trace()
+
         print("dd")
 
     def train(self):
@@ -107,38 +112,25 @@ class CtrlVAETrainer(object):
     def _print_results(self, result, id_to_word, max_words):
         self._print_asterisk()
 
-        def batch_to_str(result_batch):
-            str_batch = list()
-            for result in result_batch:
-                words = self._ids_to_words(result, id_to_word)
-                str_batch.append(self._words_to_str(words, max_words))
-            return str_batch
+        def ids_to_str(word_ids):
+            words = self._ids_to_words(word_ids, id_to_word)
+            return self._words_to_str(words, max_words)
 
-        vae_in = batch_to_str(result['input_ids'])
-        vae_out = batch_to_str(result['vae_sample'])
-        gen_in = batch_to_str(result['answer'])
-        gen_out = batch_to_str(result['gen_sample'])
-        gen_pred = batch_to_str([[res] for res in result['gen_c_sample']])
-        dis_out = batch_to_str([[res] for res in result['dis_sample']])
+        vae_in = ids_to_str(result['input_ids'][0])
+        vae_out = ids_to_str(result['vae_sample'][0])
+        gen_in = ids_to_str(result['answer'][0])
+        gen_out = ids_to_str(result['gen_sample'][0])
+        gen_pred = ids_to_str([result['gen_c_sample'][0]])
+        dis_out = ids_to_str([result['dis_sample'][0]])
 
-        print('\n## VAE ##')
-        print("[Q_0] " + vae_in[0] + "\n[Q_hat_0] " + vae_out[0])
-        print("[Q_1] " + vae_in[1] + "\n[Q_hat_1] " + vae_out[1])
-        print("[Q_2] " + vae_in[2] + "\n[Q_hat_2] " + vae_out[2])
-        print("\n## Generator ##")
-        print("[A_cond_0] " + gen_in[0] + "/ [A_pred_0] " + gen_pred[0])
-        print("[Q_sampled_0] " + gen_out[0])
-        print("[A_cond_1] " + gen_in[1] + "/ [A_pred_1] " + gen_pred[1])
-        print("[Q_sampled_1] " + gen_out[1])
-        print("[A_cond_2] " + gen_in[2] + "/ [A_pred_2] " + gen_pred[2])
-        print("[Q_sampled_2] " + gen_out[2])
-        print("\n## Discriminator ##")
-        print("[Q_0] " + vae_in[0])
-        print("[A_true_0] " + gen_in[0] + " / [A_pred_0] " + dis_out[0])
-        print("[Q_1] " + vae_in[1])
-        print("[A_true_1] " + gen_in[1] + " / [A_pred_1] " + dis_out[1])
-        print("[Q_2] " + vae_in[2])
-        print("[A_true_2] " + gen_in[2] + " / [A_pred_2] " + dis_out[2])
+        print('## VAE ##')
+        print("[Q] " + vae_in + "\n" + "[Q_hat] " + vae_out)
+        print("## Generator ##")
+        print("[Q_sampled] " + gen_out)
+        print("[A] actual: " + gen_in + " / predicted: " + gen_pred)
+        print("## Discriminator ##")
+        print("[Q] " + vae_in)
+        print("[A] actual: " + gen_in + " / predicted: " + dis_out)
         self._print_asterisk()
 
     def sample(self):

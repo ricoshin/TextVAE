@@ -36,6 +36,7 @@ def load_simple_questions(lower=True):
             questions.append(ques_tokens)
 
             vocab.update(ques_tokens + ans_tokens)
+            # import ipdb; ipdb.set_trace()
         return questions, answers
 
     with open(os.path.join(data_dir, 'train.txt')) as lines:
@@ -43,5 +44,5 @@ def load_simple_questions(lower=True):
 
     with open(os.path.join(data_dir, 'valid.txt')) as lines:
         valid = parse_file(lines, vocab)
-
+    # import ipdb; ipdb.set_trace()
     return train, valid, vocab
