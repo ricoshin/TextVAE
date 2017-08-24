@@ -60,6 +60,7 @@ def main(_):
     config = ConfigStruct(**configs["model"])
     config.update(**configs["train"])
     config.update(**configs["sampling"])
+    config.update(**configs["data"])
 
     # Trainer
     trainer = CtrlVAETrainer(config)
