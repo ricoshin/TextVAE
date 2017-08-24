@@ -64,9 +64,10 @@ class CtrlVAEModel(object):
             ### Generator ######################################################
 
             # random z and c from the prior
-            gen_z = tf.random_normal([config.batch_size, config.hidden_size])
-            gen_c = vae_c
-            gen_represent = tf.concat([gen_z, gen_c], axis=1)
+            self.gen_z = tf.random_normal([config.batch_size,
+                                           config.hidden_size])
+            self.gen_c = vae_c
+            gen_represent = tf.concat([self.gen_z, self.gen_c], axis=1)
 
             # generator (decoder)
             x_dec_onehot = tf.one_hot(x_dec, config.vocab_num)

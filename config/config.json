@@ -14,12 +14,12 @@
     "print_step": 30,
     "save_model_secs": 60,
     "kl_anealing_step":5000,
-    "gen_lr_anealing_step":25000,
+    "gen_lr_anealing_step":20000,
     "is_reload_embed":false,
-    "is_trainable_embed":true
+    "is_trainable_embed":false
   },
   "sampling":{
     "is_argmax_sampling":true,
-    "interpolate_samples":true
+    "is_interpolation":false
  }
 }

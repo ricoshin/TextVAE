@@ -19,11 +19,11 @@ class CtrlVAETrainer(object):
         self.config = config
 
         sq_dataset = load_simple_questions_dataset(config)
-        train_data, valid_data, embed_mat, word_to_id = sq_dataset
-        self.id_to_word = {i: w for w, i in word_to_id.items()}
+        train_data, valid_data, embed_mat, self.word_to_id = sq_dataset
+        self.id_to_word = {i: w for w, i in self.word_to_id.items()}
 
         # Generate input
-        train_input = InputProducer(data=train_data, word_to_id=word_to_id,
+        train_input = InputProducer(data=train_data, word_to_id=self.word_to_id,
                                     id_to_word=self.id_to_word, config=config)
 
         # Build model
@@ -75,24 +75,24 @@ class CtrlVAETrainer(object):
                 self.model.assign_gen_lr(self.sess, new_gen_lr)
 
 
-            feeds = {"vae_train" : self.model.vae_train,
-                     "gen_train" : self.model.gen_train,
-                     "dis_train" : self.model.dis_train}
+            fetches = {"vae_train" : self.model.vae_train,
+                       "gen_train" : self.model.gen_train,
+                       "dis_train" : self.model.dis_train}
 
             if is_print(step):
-                feeds.update({"summary_op" : self.model.summary_op,
-                              "input_ids" : self.model.input_ids,
-                              "answer" : self.model.answer,
-                              "vae_sample" : self.model.vae_sample,
-                              "gen_sample" : self.model.gen_sample,
-                              "gen_c_sample" : self.model.gen_c_sample,
-                              "dis_sample" : self.model.dis_sample,
-                              "ae_loss" : self.model.ae_loss_mean,
-                              "kl_loss" : self.model.kl_loss_mean,
-                              "kl_weight" : self.model.kl_weight,
-                              "gen_lr" : self.model.gen_lr})
+                fetches.update({"summary_op" : self.model.summary_op,
+                                "input_ids" : self.model.input_ids,
+                                "answer" : self.model.answer,
+                                "vae_sample" : self.model.vae_sample,
+                                "gen_sample" : self.model.gen_sample,
+                                "gen_c_sample" : self.model.gen_c_sample,
+                                "dis_sample" : self.model.dis_sample,
+                                "ae_loss" : self.model.ae_loss_mean,
+                                "kl_loss" : self.model.kl_loss_mean,
+                                "kl_weight" : self.model.kl_weight,
+                                "gen_lr" : self.model.gen_lr})
 
-            result = self.sess.run(feeds)
+            result = self.sess.run(fetches)
 
             if is_print(step):
                 print("[*] AE_loss: {} / KL_loss: {} / KL weight : {}"
@@ -144,20 +144,38 @@ class CtrlVAETrainer(object):
     def sample(self):
         batch_size = self.config.batch_size
         hidden_size = self.config.hidden_size
+        interval_num = 19
         key = ''
         self._print_asterisk()
 
         while(key != 'q'):
-            z = np.random.normal(0, 1, (batch_size, hidden_size))
-            sampled_ids = self.sess.run(self.VAE.sampled_ids, {self.VAE.z: z})
 
-            for ids in sampled_ids:
+            answer_id = np.squeeze(self.sess.run(self.model.answer))[0]
+            answer_str = self.id_to_word[answer_id]
+            print("Sampling conditioned on the answer : " + answer_str)
+            answer = np.expand_dims([answer_id]*batch_size, 1)
+            feeds = {self.model.answer : answer}
+
+            if self.config.is_interpolation:
+                print("Walking in the latent space...")
+                z_a = np.random.normal(0, 1, (1, hidden_size))
+                z_b = np.random.normal(0, 1, (1, hidden_size))
+                diff = (z_b - z_a) / interval_num
+                intervals = [z_a + diff*i if i<=interval_num\
+                                          else np.tile([0], hidden_size)\
+                                              for i in range(batch_size)]
+                vae_z = np.vstack(intervals)
+                feeds.update({self.model.gen_z : vae_z})
+
+            gen_sample = self.sess.run(self.model.gen_sample, feeds)
+
+            for i, ids in enumerate(gen_sample):
+                if i > interval_num: break
                 words = self._ids_to_words(ids, self.id_to_word)
-                self._print_asterisk()
                 print(self._words_to_str(words, max_words=40))
-                self._print_asterisk()
-                key = raw_input("Press any key to continue('q' to quit)...")
-                if key == 'q': break
+
+            key = raw_input("Press any key to continue('q' to quit)...")
+            self._print_asterisk()
         self.sv.request_stop()
 
     def interpolate_samples(self):
