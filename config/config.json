@@ -26,7 +26,6 @@
  "data":{
    "data_name":"simple_questions",
    "data_type":"train",
-   "num_of_word_of_answer_is_one":true
+   "num_of_word_of_answer_is_one":false
  }
-
 }

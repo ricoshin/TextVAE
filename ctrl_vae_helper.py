@@ -129,7 +129,7 @@ class CtrlVAEModelingHelper(object):
                                        impute_finished=True)
             return out_tuple
 
-    def discriminator(self, inputs, inputs_length, reuse=False):
+    def discriminator(self, inputs, inputs_length, reuse=False, decoder=None):
         with tf.variable_scope('discriminator', reuse=reuse):
             inputs = self._soft_embedding_lookup(self.embed, inputs)
             _, state = dynamic_rnn(cell=self.cell(reuse),
@@ -138,5 +138,9 @@ class CtrlVAEModelingHelper(object):
                                    dtype=tf.float32)
             output_layer = Dense(self.config.vocab_num)
             outputs = output_layer(state)
-            predicted = tf.argmax(outputs, 1)
+            if decoder is not None:
+                outputs = decoder(outputs)
+                predicted = tf.argmax(outputs, 2)
+            else:
+                predicted = tf.argmax(outputs, 1)
             return outputs, predicted

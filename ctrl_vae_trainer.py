@@ -32,7 +32,7 @@ class CtrlVAETrainer(object):
                                     id_to_word=id_to_word, config=config)
 
         # Build model
-        self.model = CtrlVAEModel(input_producer= train_input,
+        self.model = CtrlVAEModel(input_producer=train_input,
                                   embed_mat=embed_mat,
                                   config=config,
                                   is_train=FLAGS.is_train)

@@ -191,7 +191,9 @@ def load_simple_questions_dataset(config):
     vocab = dataset_vocab-unknowns
     # import ipdb; ipdb.set_trace()
     train_q, train_q_len = append_eos(train_q)
+    train_a, train_a_len = append_eos(train_a)
     valid_q, valid_q_len = append_eos(valid_q)
+    valid_a, valid_a_len = append_eos(valid_a)
 
     train_q_rev = make_reverse(train_q)
     valid_q_rev = make_reverse(valid_q)
@@ -201,6 +203,10 @@ def load_simple_questions_dataset(config):
     train_q_rev = append_pads(train_q_rev, max_len)
     valid_q = append_pads(valid_q, max_len)
     valid_q_rev = append_pads(valid_q_rev, max_len)
+
+    max_answ_len = max(len(sent) for sent in train_a+valid_a)
+    train_a = append_pads(train_a, max_answ_len)
+    valid_a = append_pads(valid_a, max_answ_len)
 
     vocab = SPECIAL_TOKENS + list(vocab)
     embd_mat, word2idx = load_glove_embeddings(os.path.join(FLAGS.data_dir,
@@ -240,12 +246,12 @@ def load_simple_questions_dataset(config):
 
     train = DataFile(p=None, p_rev=None, p_len=None,
                      q=train_q, q_rev=train_q_rev, q_len=train_q_len,
-                     a=train_a, a_rev=None, a_len=None,
-                     a_index = None) #우선 a_len 고려 X
+                     a=train_a, a_rev=None, a_len= train_a_len, # None,
+                     a_index = None)
     valid = DataFile(p=None, p_rev=None, p_len=None,
                      q=valid_q, q_rev=valid_q_rev, q_len=valid_q_len,
-                     a=valid_a, a_rev=None, a_len=None,
-                     a_index = None) #우선 a_len 고려 X
+                     a=valid_a, a_rev=None, a_len=valid_a_len,
+                     a_index = None)
 
     return DataSet(train=train, valid=valid, embd_mat=embd_mat,
                    word2idx=word2idx, idx2word=idx2word)
