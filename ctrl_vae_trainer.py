@@ -13,6 +13,8 @@ import os
 from data import load_simple_questions_dataset
 from data import load_dataset
 
+from evaluate import simple_evaluate
+
 FLAGS = tf.app.flags.FLAGS
 
 class CtrlVAETrainer(object):
@@ -116,21 +118,34 @@ class CtrlVAETrainer(object):
             words = self._ids_to_words(word_ids, id_to_word)
             return self._words_to_str(words, max_words)
 
-        vae_in = ids_to_str(result['input_ids'][0])
-        vae_out = ids_to_str(result['vae_sample'][0])
-        gen_in = ids_to_str(result['answer'][0])
-        gen_out = ids_to_str(result['gen_sample'][0])
-        gen_pred = ids_to_str([result['gen_c_sample'][0]])
-        dis_out = ids_to_str([result['dis_sample'][0]])
+        def batch_ids_to_str(sents):
+            return [ids_to_str(ids) for ids in sents]
+        
+        vae_ins = batch_ids_to_str(result['input_ids'])
+        vae_outs = batch_ids_to_str(result['vae_sample'])
+        gen_ins = batch_ids_to_str(result['answer'])
+        gen_outs = batch_ids_to_str(result['gen_sample'])
+        gen_preds = batch_ids_to_str(result['gen_c_sample'])
+        dis_outs = batch_ids_to_str(result['dis_sample'])
+
+        vae_in = vae_ins[0]
+        vae_out = vae_outs[0]
+        gen_in = gen_ins[0]
+        gen_out = gen_outs[0]
+        gen_pred = gen_preds[0]
+        dis_out = dis_outs[0]
 
         print('## VAE ##')
         print("[Q] " + vae_in + "\n" + "[Q_hat] " + vae_out)
+        print(simple_evaluate(gen_ins, gen_outs))
         print("## Generator ##")
         print("[Q_sampled] " + gen_out)
         print("[A] actual: " + gen_in + " / predicted: " + gen_pred)
+        print(simple_evaluate(gen_ins, gen_preds))
         print("## Discriminator ##")
         print("[Q] " + vae_in)
         print("[A] actual: " + gen_in + " / predicted: " + dis_out)
+        print(simple_evaluate(gen_ins, dis_outs))
         self._print_asterisk()
 
     def sample(self):
@@ -142,13 +157,14 @@ class CtrlVAETrainer(object):
 
         while(key != 'q'):
 
-            answer_id = np.squeeze(self.sess.run(self.model.answer))[0]
-            answer_str = self.id_to_word[answer_id]
+            answer_ids = np.squeeze(self.sess.run(self.model.answer))[0]
+            # import ipdb; ipdb.set_trace()
+            answer_str = ' '.join([self.id_to_word[answer_id] for answer_id in answer_ids])
             print("Sampling conditioned on the answer : " + answer_str)
-            answer = np.expand_dims([answer_id]*batch_size, 1)
+            answer = np.tile(answer_ids, (batch_size, 1))
             feeds = {self.model.answer : answer}
 
-            if self.config.is_interpolation:
+            if self.config.interpolate_samples:
                 print("Walking in the latent space...")
                 z_a = np.random.normal(0, 1, (1, hidden_size))
                 z_b = np.random.normal(0, 1, (1, hidden_size))
@@ -166,7 +182,7 @@ class CtrlVAETrainer(object):
                 words = self._ids_to_words(ids, self.id_to_word)
                 print(self._words_to_str(words, max_words=40))
 
-            key = raw_input("Press any key to continue('q' to quit)...")
+            key = input("Press any key to continue('q' to quit)...")
             self._print_asterisk()
         self.sv.request_stop()
 
@@ -197,7 +213,7 @@ class CtrlVAETrainer(object):
         self.sv.request_stop()
 
     def _print_asterisk(self):
-        print("*"*120)
+        print("*"*80)
 
     def _ids_to_words(self, word_ids, id_to_word):
         return [id_to_word[word_id]

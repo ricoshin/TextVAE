@@ -51,7 +51,6 @@ def _build_vocab(filename, max_vocab_size=None):
     # if the words appear more often, id will be lower
     return word_to_id, id_to_word
 
-
 def _append_pads(line, max_sequence_length):
     num_pads = max_sequence_length - len(line)
     assert(num_pads >= 0)

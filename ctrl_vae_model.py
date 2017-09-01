@@ -166,7 +166,7 @@ class CtrlVAEModel(object):
                                             initial_state=inital_state,
                                             inputs=self.answer,
                                             inputs_length=self.answer_length,
-                                            is_train=False)  
+                                            is_train=True)  
             out_tuple = modeler.discriminator(inputs=gen_outputs_onehot,
                                               inputs_length=gen_outputs_len,
                                               decoder=decoder)
