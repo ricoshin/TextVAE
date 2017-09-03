@@ -123,10 +123,10 @@ class CtrlVAETrainer(object):
         
         vae_ins = batch_ids_to_str(result['input_ids']) # question
         vae_outs = batch_ids_to_str(result['vae_sample']) # question
-        gen_ins = batch_ids_to_str(result['answer']) #answer
-        gen_outs = batch_ids_to_str(result['gen_sample']) #question
+        gen_ins = batch_ids_to_str(result['answer']) # answer
+        gen_outs = batch_ids_to_str(result['gen_sample']) # question
         gen_preds = batch_ids_to_str(result['gen_c_sample']) # answer
-        dis_outs = batch_ids_to_str(result['dis_sample']) #answer
+        dis_outs = batch_ids_to_str(result['dis_sample']) # answer
 
         vae_in = vae_ins[0]
         vae_out = vae_outs[0]
@@ -141,7 +141,7 @@ class CtrlVAETrainer(object):
         print("## Generator ##")
         print("[Q_sampled] " + gen_out)
         print("[A] actual: " + gen_in + " / predicted: " + gen_pred)
-        print("[Eval] vae_ins vs. vae_outs: ", simple_evaluate(vae_ins, vae_outs))
+        print("[Eval] vae_ins vs. gen_outs: ", simple_evaluate(vae_ins, gen_outs))
         print("[Eval] gen_ins vs. gen_preds:", simple_evaluate(gen_ins, gen_preds))
         print("## Discriminator ##")
         print("[Q] " + vae_in)
@@ -217,9 +217,14 @@ class CtrlVAETrainer(object):
         print("*"*80)
 
     def _ids_to_words(self, word_ids, id_to_word):
-        return [id_to_word[word_id]
-                    for word_id in word_ids if word_id!=PAD_ID]
-                    # and word_id!=EOS_ID)]'
+        words = []
+        for word_id in word_ids:
+            if word_id == EOS_ID:
+                break
+            if word_id == PAD_ID:
+                continue
+            words.append(id_to_word[word_id])
+        return words
 
     def _words_to_str(self, words, max_words):
         # if sentence is too long,

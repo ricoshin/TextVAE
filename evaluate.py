@@ -62,13 +62,25 @@ def bleu_ngram(n, candidate, references):
 
     common = Counter(pred) & ref_counts
     num_same = sum(common.values())
+
     if num_same == 0:
-        return 0
-    return 1.0 * num_same / len(pred)
+        return 0.0
+    return num_same / len(pred)
     
 def bleu_score(prediction, ground_truths, num_ngrams):
     prediction_tokens = normalize_answer(prediction).split()
     ground_truths_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+
+    score = 0
+    any_match = 0
+    for i in range(1, num_ngrams + 1):
+        precision = bleu_ngram(i, prediction_tokens, ground_truths_tokens)
+        if precision > 0:
+            any_match += 1
+            score += math.log(precision)
+
+    if any_match == 0:
+        return 0.0
 
     # brevity penalty
     num_pred = len(prediction_tokens)
@@ -77,12 +89,6 @@ def bleu_score(prediction, ground_truths, num_ngrams):
         penalty = math.exp(1 - 1.0 * num_truth / num_pred) 
     else:
         penalty = 1
-
-    score = 0
-    for i in range(1, num_ngrams + 1):
-        precision = bleu_ngram(i, prediction_tokens, ground_truths_tokens)
-        if precision > 0:
-            score += math.log(precision)
 
     # applying geometric mean
     bleu = math.exp(score / num_ngrams) 
@@ -159,16 +165,17 @@ def simple_evaluate(references, predictions):
     metrics = {
         'em': lambda p, g: metric_max_over_ground_truths(exact_match_score, p, g),
         'f1': lambda p, g: metric_max_over_ground_truths(f1_score, p, g),
-        'bleu': bleu_score,
+        'bleu': lambda p, g: bleu_score(p, g, 4),
         'meteor': lambda p, g: metric_max_over_ground_truths(meteor_score, p, g),
     }
 
-    total = 0
     scores = { k: 0 for k in metrics }
+    
+    total = 0
     for ref, pred in zip(references, predictions):
         total += 1
-        for k, f in metrics:
-            scores[k] += f(pred, [ref])
+        for k in metrics:
+            scores[k] += metrics[k](pred, [ref])
     for k in metrics:
         scores[k] = 100.0 * scores[k] / total
     return scores
