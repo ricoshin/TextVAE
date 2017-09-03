@@ -121,12 +121,12 @@ class CtrlVAETrainer(object):
         def batch_ids_to_str(sents):
             return [ids_to_str(ids) for ids in sents]
         
-        vae_ins = batch_ids_to_str(result['input_ids'])
-        vae_outs = batch_ids_to_str(result['vae_sample'])
-        gen_ins = batch_ids_to_str(result['answer'])
-        gen_outs = batch_ids_to_str(result['gen_sample'])
-        gen_preds = batch_ids_to_str(result['gen_c_sample'])
-        dis_outs = batch_ids_to_str(result['dis_sample'])
+        vae_ins = batch_ids_to_str(result['input_ids']) # question
+        vae_outs = batch_ids_to_str(result['vae_sample']) # question
+        gen_ins = batch_ids_to_str(result['answer']) #answer
+        gen_outs = batch_ids_to_str(result['gen_sample']) #question
+        gen_preds = batch_ids_to_str(result['gen_c_sample']) # answer
+        dis_outs = batch_ids_to_str(result['dis_sample']) #answer
 
         vae_in = vae_ins[0]
         vae_out = vae_outs[0]
@@ -137,15 +137,16 @@ class CtrlVAETrainer(object):
 
         print('## VAE ##')
         print("[Q] " + vae_in + "\n" + "[Q_hat] " + vae_out)
-        print(simple_evaluate(gen_ins, gen_outs))
+        print('[Eval] vae_ins vs. vae_outs:', simple_evaluate(vae_ins, vae_outs))
         print("## Generator ##")
         print("[Q_sampled] " + gen_out)
         print("[A] actual: " + gen_in + " / predicted: " + gen_pred)
-        print(simple_evaluate(gen_ins, gen_preds))
+        print("[Eval] vae_ins vs. vae_outs: ", simple_evaluate(vae_ins, vae_outs))
+        print("[Eval] gen_ins vs. gen_preds:", simple_evaluate(gen_ins, gen_preds))
         print("## Discriminator ##")
         print("[Q] " + vae_in)
         print("[A] actual: " + gen_in + " / predicted: " + dis_out)
-        print(simple_evaluate(gen_ins, dis_outs))
+        print("[Eval] gen_ins vs. dis_outs:", simple_evaluate(gen_ins, dis_outs))
         self._print_asterisk()
 
     def sample(self):

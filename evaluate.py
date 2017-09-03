@@ -6,8 +6,9 @@ import re
 import argparse
 import json
 import sys
+import math
+import operator
 from functools import reduce
-from math import exp
 import copy
 
 def normalize_answer(s):
@@ -51,36 +52,47 @@ def ngram(n, iterable):
         window.append(next(iterable))
         window = window[1:]
 
-def bleu_ngram(n, prediction, ground_truth):
-    pred = [' '.join(window) for window in ngram(n, prediction)]
-    truth = [' '.join(window) for window in ngram(n, ground_truth)]
+def bleu_ngram(n, candidate, references):
+    pred = [' '.join(window) for window in ngram(n, candidate)]
+    truths = [[' '.join(window) for window in ngram(n, reference)] for reference in references]
 
-    common = Counter(pred) & Counter(truth)
+    ref_counts = Counter()
+    for truth in truths:
+        ref_counts |= Counter(truth)
+
+    common = Counter(pred) & ref_counts
     num_same = sum(common.values())
     if num_same == 0:
         return 0
     return 1.0 * num_same / len(pred)
     
-def bleu_score(prediction, ground_truth):
+def bleu_score(prediction, ground_truths, num_ngrams):
     prediction_tokens = normalize_answer(prediction).split()
-    ground_truth_tokens = normalize_answer(ground_truth).split()
+    ground_truths_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
 
-    penalty = 1
-    if 1 <= len(prediction_tokens) <= len(ground_truth_tokens):
-        penalty = exp(1 - 1.0 * len(ground_truth_tokens) / len(prediction_tokens)) 
-
-    scores = []
     # brevity penalty
-    for i in range(1, 5):
-        score = scores.append(bleu_ngram(i, prediction, ground_truth))
+    num_pred = len(prediction_tokens)
+    num_truth = min(len(truth) for truth in ground_truths_tokens)
+    if 1 <= num_pred <= num_truth:
+        penalty = math.exp(1 - 1.0 * num_truth / num_pred) 
+    else:
+        penalty = 1
+
+    score = 0
+    for i in range(1, num_ngrams + 1):
+        precision = bleu_ngram(i, prediction_tokens, ground_truths_tokens)
+        if precision > 0:
+            score += math.log(precision)
 
     # applying geometric mean
-    bleu = reduce(lambda x, y: x * y, scores) ** (1.0 / len(scores))
+    bleu = math.exp(score / num_ngrams) 
     return bleu * penalty
 
 def chunk(a, b):
     b = copy.deepcopy(b)
-    c, u = 0, 0
+    c, u = 0, 0 # c: number of chunks, u: number of words associated with chunk
+
+    # Find a common sequence (= a chunk)
     def _calc_common_length(x, y):
         n = 0
         for cx, cy in zip(x, y):
@@ -100,6 +112,7 @@ def chunk(a, b):
         pos = -1
         j = -1
 
+        # Find a common longest sequence 
         while True:
             j = _find(b, a[i], j + 1)
             if j < 0:
@@ -108,6 +121,8 @@ def chunk(a, b):
             if common_len > max_len:
                 pos = j
                 max_len = common_len
+
+        # replace empty sentence ([0])
         if pos >= 0:
             b[pos:pos+max_len] = [0]
             c += 1
@@ -142,19 +157,18 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
 
 def simple_evaluate(references, predictions):
     metrics = {
-        'em': exact_match_score,
-        'f1': f1_score,
+        'em': lambda p, g: metric_max_over_ground_truths(exact_match_score, p, g),
+        'f1': lambda p, g: metric_max_over_ground_truths(f1_score, p, g),
         'bleu': bleu_score,
-        'meteor': meteor_score,
+        'meteor': lambda p, g: metric_max_over_ground_truths(meteor_score, p, g),
     }
 
     total = 0
     scores = { k: 0 for k in metrics }
     for ref, pred in zip(references, predictions):
         total += 1
-        for k in metrics:
-            scores[k] += metric_max_over_ground_truths(
-                metrics[k], pred, [ref])
+        for k, f in metrics:
+            scores[k] += f(pred, [ref])
     for k in metrics:
         scores[k] = 100.0 * scores[k] / total
     return scores

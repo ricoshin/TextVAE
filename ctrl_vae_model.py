@@ -16,80 +16,7 @@ from data_loader import UNK_ID, EOS_ID
 from ctrl_vae_helper import CtrlVAEModelingHelper
 
 ALMOST_ZERO = 1e-12
-
-def encode_answer(config, embed, inputs, inputs_length):
-    # inputs=[batch_size, max_answ_len]
-
-    cell = GRUCell(num_units=config.hidden_size)
-    # inputs=[batch_size, max_answ_len, embed_dim(50)]
-    with tf.device("/cpu:0"):
-        inputs = embedding_lookup(embed, inputs)
-    _, state = dynamic_rnn(cell=cell,
-                           inputs=inputs,
-                           sequence_length=inputs_length,
-                           dtype=tf.float32)
-    # state=[batch_size, hidden_size]
-
-    W_answ = tf.get_variable('W_answ', [config.hidden_size, config.embed_dim])
-    b_answ = tf.get_variable('b_answ', [config.embed_dim])
-
-    # [batch_size, embed_dim]
-    return tf.matmul(state, W_answ) + b_answ
-
-def decode_answer(config, max_length, embed, initial_state, inputs, inputs_length, is_train=False):
-    with tf.variable_scope('decoder') as scope:
-        cell = GRUCell(num_units=config.hidden_size)
-        # decoder
-        dropout_keep_prob = config.word_dropout_keep_prob
-        is_argmax_sampling = config.is_argmax_sampling
-
-        initial_state = dense(inputs=initial_state,
-                              units=config.hidden_size,
-                              activation=None,
-                              use_bias=True,
-                              trainable=True)
-
-        if is_train: # teacher forcing for training
-            assert(dropout_keep_prob is not None)
-            inputs = embedding_lookup(embed, inputs)
-            helper = WordDropoutTrainingHelper(inputs=inputs,
-                                               sequence_length=inputs_length,
-                                               embedding=embed,
-                                               dropout_keep_prob=dropout_keep_prob,
-                                               drop_token_id=UNK_ID)
-        else : # for sampling
-            SamplingHelper = (GreedyEmbeddingHelper \
-                if is_argmax_sampling else SampleEmbeddingHelper)
-            start_tokens = tf.tile([EOS_ID], [config.batch_size])
-
-            helper = SamplingHelper(embedding=embed,
-                                    start_tokens=start_tokens,
-                                    end_token=EOS_ID)
-        # projection layer
-        output_layer = Dense(units=config.vocab_num,
-                             activation=None,
-                             use_bias=True,
-                             trainable=True)
-
-        # decoder
-        decoder = BasicDecoder(cell=cell,
-                               helper=helper,
-                               initial_state=initial_state,
-                               output_layer=output_layer)
-
-        # dynamic_decode
-        out_tuple = dynamic_decode(decoder=decoder,
-                                   output_time_major=False, # speed
-                                   impute_finished=True)
-
-
-        ((outputs, _), _, _) = out_tuple
-        pad = np.zeros([config.batch_size, max_length])
-        pad = tf.one_hot(pad, config.vocab_num)
-        outputs = tf.concat([outputs, pad], axis=1)
-        outputs = outputs[:, :max_length, :]
-        return outputs
-    
+  
 class CtrlVAEModel(object):
 
     def __init__(self, input_producer, embed_mat, config, is_train):
@@ -166,7 +93,7 @@ class CtrlVAEModel(object):
                                             initial_state=inital_state,
                                             inputs=self.answer,
                                             inputs_length=self.answer_length,
-                                            is_train=True)  
+                                            is_train=is_train)  
             out_tuple = modeler.discriminator(inputs=gen_outputs_onehot,
                                               inputs_length=gen_outputs_len,
                                               decoder=decoder)
@@ -188,7 +115,7 @@ class CtrlVAEModel(object):
                                             initial_state=inital_state,
                                             inputs=self.answer,
                                             inputs_length=self.answer_length,
-                                            is_train=True)  
+                                            is_train=is_train)  
             out_tuple = modeler.discriminator(inputs=x_dis_onehot,
                                               inputs_length=gen_outputs_len,
                                               reuse=True,
@@ -303,3 +230,76 @@ def sess():
     #import pdb; pdb.set_trace()
     return sess
 
+def encode_answer(config, embed, inputs, inputs_length):
+    # inputs=[batch_size, max_answ_len]
+
+    cell = GRUCell(num_units=config.hidden_size)
+    # inputs=[batch_size, max_answ_len, embed_dim(50)]
+    with tf.device("/cpu:0"):
+        inputs = embedding_lookup(embed, inputs)
+    _, state = dynamic_rnn(cell=cell,
+                           inputs=inputs,
+                           sequence_length=inputs_length,
+                           dtype=tf.float32)
+    # state=[batch_size, hidden_size]
+
+    W_answ = tf.get_variable('W_answ', [config.hidden_size, config.embed_dim])
+    b_answ = tf.get_variable('b_answ', [config.embed_dim])
+
+    # [batch_size, embed_dim]
+    return tf.matmul(state, W_answ) + b_answ
+
+def decode_answer(config, max_length, embed, initial_state, inputs, inputs_length, is_train=False):
+    with tf.variable_scope('decoder') as scope:
+        cell = GRUCell(num_units=config.hidden_size)
+        # decoder
+        dropout_keep_prob = config.word_dropout_keep_prob
+        is_argmax_sampling = config.is_argmax_sampling
+
+        initial_state = dense(inputs=initial_state,
+                              units=config.hidden_size,
+                              activation=None,
+                              use_bias=True,
+                              trainable=True)
+
+        if is_train: # teacher forcing for training
+            assert(dropout_keep_prob is not None)
+            inputs = embedding_lookup(embed, inputs)
+            helper = WordDropoutTrainingHelper(inputs=inputs,
+                                               sequence_length=inputs_length,
+                                               embedding=embed,
+                                               dropout_keep_prob=dropout_keep_prob,
+                                               drop_token_id=UNK_ID)
+        else : # for sampling
+            SamplingHelper = (GreedyEmbeddingHelper \
+                if is_argmax_sampling else SampleEmbeddingHelper)
+            start_tokens = tf.tile([EOS_ID], [config.batch_size])
+
+            helper = SamplingHelper(embedding=embed,
+                                    start_tokens=start_tokens,
+                                    end_token=EOS_ID)
+        # projection layer
+        output_layer = Dense(units=config.vocab_num,
+                             activation=None,
+                             use_bias=True,
+                             trainable=True)
+
+        # decoder
+        decoder = BasicDecoder(cell=cell,
+                               helper=helper,
+                               initial_state=initial_state,
+                               output_layer=output_layer)
+
+        # dynamic_decode
+        out_tuple = dynamic_decode(decoder=decoder,
+                                   output_time_major=False, # speed
+                                   impute_finished=True)
+
+
+        ((outputs, _), _, _) = out_tuple
+        pad = np.zeros([config.batch_size, max_length])
+        pad = tf.one_hot(pad, config.vocab_num)
+        outputs = tf.concat([outputs, pad], axis=1)
+        outputs = outputs[:, :max_length, :]
+        return outputs
+ 

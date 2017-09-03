@@ -61,9 +61,9 @@ def main(_):
     config.update(**configs["train"])
     config.update(**configs["sampling"])
     config.update(**configs["data"])
-
     # Trainer
-    trainer = CtrlVAETrainer(config)
+    with tf.device('/gpu:1'):
+        trainer = CtrlVAETrainer(config)
 
     if FLAGS.is_train:
         trainer.train()
