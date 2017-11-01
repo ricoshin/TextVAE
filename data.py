@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import copy
 import csv
 import numpy as np
