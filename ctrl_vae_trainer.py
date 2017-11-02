@@ -72,13 +72,20 @@ class CtrlVAETrainer(object):
             if step < aneal_step:
                 new_kl_weight = (-cos(pi*step/aneal_step)+1)/2
                 self.model.assign_kl_weight(self.sess, new_kl_weight)
+            else:
+                self.model.assign_kl_weight(self.sess, 1.0)
 
+            # update Generator training weight
             aneal_step = self.config.gen_lr_anealing_step
+            offset = self.config.gen_lr_zero_step
             max_lr = self.config.learning_rate
-            if step < aneal_step:
-                new_gen_lr = (-cos(pi*step/aneal_step)+1)/2*max_lr
+            if step < offset:
+                self.model.assign_gen_lr(self.sess, 0.0)
+            elif step < (aneal_step + offset):
+                new_gen_lr = (-cos(pi*(step-offset)/aneal_step)+1)/2*max_lr
                 self.model.assign_gen_lr(self.sess, new_gen_lr)
-
+            else:
+                self.model.assign_gen_lr(self.sess, max_lr)
 
             fetches = {"vae_train" : self.model.vae_train,
                        "gen_train" : self.model.gen_train,

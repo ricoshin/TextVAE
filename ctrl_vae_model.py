@@ -117,10 +117,12 @@ class CtrlVAEModel(object):
         softmax_loss = sequence_loss(logits=self.vae_output,
                                      targets=targets,
                                      weights=weights,
-                                     average_across_timesteps=True,
-                                     average_across_batch=True)
+                                     average_across_timesteps=False,
+                                     average_across_batch=False)
 
-        self.ae_loss = self.ae_loss_mean = softmax_loss
+        # NOTE: fix later!
+        loss_sum = tf.reduce_sum(softmax_loss, axis=1)
+        self.ae_loss = self.ae_loss_mean = tf.reduce_mean(loss_sum, axis=0)
         #self.ae_loss_mean = tf.reduce_mean(softmax_loss)
 
         # compute KL loss (regularization)
